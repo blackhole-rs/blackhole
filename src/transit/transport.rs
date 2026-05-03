@@ -139,7 +139,7 @@ pub(super) async fn tcp_get_external_ip() -> Result<(SocketAddr, TcpStream), Stu
         );
 
         message.add_attribute(Attribute::Software(Software::new(
-            "magic-wormhole-rust".to_owned(),
+            "blackhole".to_owned(),
         )?));
 
         // Encodes the message

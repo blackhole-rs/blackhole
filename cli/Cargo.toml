@@ -1,5 +1,5 @@
 [package]
-name = "magic-wormhole-cli"
+name = "blackhole-cli"
 categories = ["command-line-utilities"]
 
 version.workspace = true
@@ -14,7 +14,7 @@ rust-version.workspace = true
 edition.workspace = true
 
 [[bin]]
-name = "wormhole-rs"
+name = "blackhole"
 path = "src/main.rs"
 
 [dependencies]
@@ -28,7 +28,7 @@ rand = { workspace = true }
 smol = { workspace = true }
 
 # CLI specific dependencies
-magic-wormhole = { path = "..", version = "0.8.0-alpha.1", features = ["all"] }
+blackhole = { path = "..", version = "0.8.0-alpha.1", features = ["all"] }
 clap = { workspace = true, features = ["cargo", "derive", "help", "env"] }
 clap_complete = { workspace = true }
 env_logger = { workspace = true }
@@ -52,11 +52,11 @@ trycmd = { workspace = true }
 clipboard = ["dep:arboard"]
 # TLS implementations for websocket connections via async-tungstenite
 # required for optional wss connection to the mailbox server
-tls = ["magic-wormhole/tls"]
-native-tls = ["magic-wormhole/native-tls"]
+tls = ["blackhole/tls"]
+native-tls = ["blackhole/native-tls"]
 # Enable experimental transfer-v2 support. The protocol is not yet finalized and is subject to change.
-experimental-transfer-v2 = ["magic-wormhole/experimental-transfer-v2"]
+experimental-transfer-v2 = ["blackhole/experimental-transfer-v2"]
 experimental = ["experimental-transfer-v2"]
 
-default = ["clipboard", "magic-wormhole/default", "magic-wormhole/forwarding"]
-all = ["default", "magic-wormhole/native-tls"]
+default = ["clipboard", "blackhole/default", "blackhole/forwarding"]
+all = ["default", "blackhole/native-tls"]

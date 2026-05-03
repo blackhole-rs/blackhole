@@ -153,7 +153,7 @@ fn executor() -> &'static async_executor::Executor<'static> {
 
             for n in 1..=NUM_THREADS {
                 std::thread::Builder::new()
-                    .name(format!("magic-wormhole-{}", n))
+                    .name(format!("blackhole-{}", n))
                     .spawn(|| {
                         loop {
                             std::panic::catch_unwind(|| {

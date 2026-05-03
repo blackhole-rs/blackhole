@@ -18,7 +18,7 @@ use completer::enter_code;
 use console::{Term, style};
 use futures::{Future, future::Either};
 use indicatif::{MultiProgress, ProgressBar};
-use magic_wormhole::{
+use blackhole::{
     MailboxConnection, ParseCodeError, ParsePasswordError, Wormhole, forwarding, transfer,
     transit::{self, ConnectionType, TransitInfo},
 };
@@ -246,13 +246,13 @@ enum WormholeCommand {
     version,
     author,
     about,
-    name = "wormhole-rs",
+    name = "blackhole",
     arg_required_else_help = true,
     disable_help_subcommand = true,
     propagate_version = true,
     after_help = "Run a subcommand with `--help` to know how it's used.\n\
-                 To send files, use `wormhole send <PATH>`.\n\
-                 To receive files, use `wormhole receive <CODE>`."
+                 To send files, use `blackhole send <PATH>`.\n\
+                 To receive files, use `blackhole receive <CODE>`."
 )]
 struct WormholeCli {
     /// Enable logging to stdout, for debugging purposes
@@ -298,7 +298,7 @@ async fn async_main() -> eyre::Result<()> {
         tracing_subscriber::fmt()
             .with_max_level(tracing::Level::TRACE)
             .with_env_filter(EnvFilter::new(
-                "wormhole_rs=debug,magic_wormhole::core=trace,mio=debug,ws=error",
+                "blackhole_cli=debug,blackhole::core=trace,mio=debug,ws=error",
             ))
             .with_target(false)
             .init();
@@ -552,7 +552,7 @@ async fn async_main() -> eyre::Result<()> {
             match shell {
                 shell @ clap_complete::Shell::Zsh => {
                     // for zsh, we will wrap the output to make it easier to use
-                    // this way we can source it directly `source <(wormhole-rs completion zsh)`
+                    // this way we can source it directly `source <(blackhole completion zsh)`
 
                     let mut out = Vec::new();
                     clap_complete::generate(shell, &mut cmd, binary_name, &mut out);
@@ -590,7 +590,7 @@ fn parse_transit_args(args: &CommonArgs) -> transit::Abilities {
 }
 
 type PrintCodeFn =
-    dyn Fn(&mut Term, &magic_wormhole::Code, &Option<url::Url>, bool) -> eyre::Result<()>;
+    dyn Fn(&mut Term, &blackhole::Code, &Option<url::Url>, bool) -> eyre::Result<()>;
 
 /**
  * Parse the necessary command line arguments to establish an initial server connection.
@@ -606,9 +606,9 @@ async fn parse_and_connect(
     code_length: Option<usize>,
     no_qr: bool,
     is_send: bool,
-    mut app_config: magic_wormhole::AppConfig<impl serde::Serialize + Send + Sync + 'static>,
+    mut app_config: blackhole::AppConfig<impl serde::Serialize + Send + Sync + 'static>,
     print_code: Option<&PrintCodeFn>,
-) -> eyre::Result<(Wormhole, magic_wormhole::Code, Vec<transit::RelayHint>)> {
+) -> eyre::Result<(Wormhole, blackhole::Code, Vec<transit::RelayHint>)> {
     // TODO handle relay servers with multiple endpoints better
     let mut relay_hints: Vec<transit::RelayHint> = common_args
         .relay_server
@@ -618,7 +618,7 @@ async fn parse_and_connect(
     if relay_hints.is_empty() {
         relay_hints.push(transit::RelayHint::from_urls(
             None,
-            [magic_wormhole::transit::DEFAULT_RELAY_SERVER
+            [blackhole::transit::DEFAULT_RELAY_SERVER
                 .parse()
                 .unwrap()],
         )?)
@@ -633,8 +633,8 @@ async fn parse_and_connect(
     // We accept a little breakage in non-interactive use, because this is a security issue
     // Split the nameplate parsing from the code parsing to ensure we allow non-integer nameplates
     // until the next breaking release
-    let res: Option<Result<magic_wormhole::Code, _>> = code.as_ref().map(|c| c.parse());
-    let code: Option<magic_wormhole::Code> = match res {
+    let res: Option<Result<blackhole::Code, _>> = code.as_ref().map(|c| c.parse());
+    let code: Option<blackhole::Code> = match res {
         Some(Ok(code)) => Some(code),
         // Check if an interactive terminal is connected
         Some(Err(
@@ -656,9 +656,9 @@ async fn parse_and_connect(
             code.map(|c| {
                 let (nameplate, password) = c.split_once("-").unwrap();
                 unsafe {
-                    magic_wormhole::Code::from_components(
-                        magic_wormhole::Nameplate::new_unchecked(nameplate),
-                        magic_wormhole::Password::new_unchecked(password),
+                    blackhole::Code::from_components(
+                        blackhole::Nameplate::new_unchecked(nameplate),
+                        blackhole::Password::new_unchecked(password),
                     )
                 }
             })
@@ -819,11 +819,11 @@ fn print_welcome(term: &mut Term, welcome: Option<&str>) -> eyre::Result<()> {
 // For file transfer
 fn sender_print_code(
     term: &mut Term,
-    code: &magic_wormhole::Code,
+    code: &blackhole::Code,
     rendezvous_server: &Option<url::Url>,
     no_qr: bool,
 ) -> eyre::Result<()> {
-    let uri = magic_wormhole::uri::WormholeTransferUri {
+    let uri = blackhole::uri::WormholeTransferUri {
         code: code.clone(),
         rendezvous_server: rendezvous_server.clone(),
         is_leader: false,
@@ -860,7 +860,7 @@ fn sender_print_code(
     writeln!(
         term,
         "For example: {} {}\n",
-        style("wormhole-rs receive").bold(),
+        style("blackhole receive").bold(),
         style(&code).bold()
     )?;
     Ok(())
@@ -869,7 +869,7 @@ fn sender_print_code(
 // For port forwarding
 fn server_print_code(
     term: &mut Term,
-    code: &magic_wormhole::Code,
+    code: &blackhole::Code,
     _: &Option<url::Url>,
     _qr: bool,
 ) -> eyre::Result<()> {
@@ -885,12 +885,12 @@ fn server_print_code(
 
     writeln!(
         term,
-        "On the other side, enter that code into a Magic Wormhole client\n"
+        "On the other side, enter that code into a Blackhole client\n"
     )?;
     writeln!(
         term,
         "For example: {} {}\n",
-        style("wormhole-rs forward connect").bold(),
+        style("blackhole forward connect").bold(),
         style(&code).bold()
     )?;
     Ok(())
@@ -921,7 +921,7 @@ async fn send(
 
 async fn send_many(
     relay_hints: Vec<transit::RelayHint>,
-    code: &magic_wormhole::Code,
+    code: &blackhole::Code,
     files: Vec<PathBuf>,
     file_name: Option<String>,
     max_tries: u64,

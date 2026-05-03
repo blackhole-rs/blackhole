@@ -1,5 +1,5 @@
 [workspace]
-members = [".", "cli"]
+members = [".", "cli", "mailbox", "transit"]
 default-members = ["cli"]
 
 [workspace.package]
@@ -10,7 +10,7 @@ authors = [
     "Brian Warner <warner@lothar.com>",
 ]
 description = "Get things from one computer to another, safely"
-keywords = ["magic-wormhole", "wormhole", "file-transfer", "transfer"]
+keywords = ["blackhole", "wormhole", "file-transfer", "transfer"]
 homepage = "http://magic-wormhole.io/"
 repository = "https://github.com/magic-wormhole/magic-wormhole.rs/tree/main/cli"
 license = "EUPL-1.2"
@@ -77,7 +77,7 @@ zxcvbn = "3.1.0"
 wasmtimer = "0.4"
 
 [package]
-name = "magic-wormhole"
+name = "blackhole"
 categories = ["network-programming", "asynchronous"]
 documentation = "https://docs.rs/magic-wormhole/latest/"
 readme = "README.md"
