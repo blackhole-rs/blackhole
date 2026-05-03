@@ -1,6 +1,3 @@
-# Auto-closes issues from un-vouched contributors and posts a friendly redirect.
-# Setup: requires a GitHub App with secrets VOUCH_APP_ID and VOUCH_APP_PRIVATE_KEY.
-# See https://github.com/mitchellh/vouch for details.
 on:
   issues:
     types: [opened, reopened]
