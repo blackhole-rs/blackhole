@@ -629,7 +629,6 @@ async fn parse_and_connect(
     }
 
     // TODO: Apply this change to all usages after an API break
-    // https://github.com/magic-wormhole/magic-wormhole.rs/issues/193
     // We accept a little breakage in non-interactive use, because this is a security issue
     // Split the nameplate parsing from the code parsing to ensure we allow non-integer nameplates
     // until the next breaking release

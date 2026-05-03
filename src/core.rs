@@ -107,7 +107,7 @@ impl<V: serde::Serialize + Send + Sync + 'static> MailboxConnection<V> {
     ///
     /// ```no_run
     /// # fn main() -> eyre::Result<()> { async_io::block_on(async {
-    /// use magic_wormhole::{AppConfig, MailboxConnection, transfer::APP_CONFIG};
+    /// use blackhole::{AppConfig, MailboxConnection, transfer::APP_CONFIG};
     /// let config = APP_CONFIG;
     /// let mailbox_connection = MailboxConnection::create(config, 2).await?;
     /// # Ok(()) })}
@@ -133,7 +133,7 @@ impl<V: serde::Serialize + Send + Sync + 'static> MailboxConnection<V> {
     /// # #[cfg(feature = "entropy")]
     /// # {
     /// # fn main() -> eyre::Result<()> { async_io::block_on(async {
-    /// use magic_wormhole::{MailboxConnection, transfer::APP_CONFIG};
+    /// use blackhole::{MailboxConnection, transfer::APP_CONFIG};
     /// let config = APP_CONFIG;
     /// let mailbox_connection =
     ///     MailboxConnection::create_with_password(config, "secret".parse()?).await?;
@@ -187,7 +187,7 @@ impl<V: serde::Serialize + Send + Sync + 'static> MailboxConnection<V> {
     ///
     /// ```no_run
     /// # fn main() -> eyre::Result<()> { async_io::block_on(async {
-    /// use magic_wormhole::{Code, MailboxConnection, Nameplate, transfer::APP_CONFIG};
+    /// use blackhole::{Code, MailboxConnection, Nameplate, transfer::APP_CONFIG};
     /// let config = APP_CONFIG;
     /// let code = "5-password".parse()?;
     /// let mailbox_connection = MailboxConnection::connect(config, code, false).await?;
@@ -202,7 +202,7 @@ impl<V: serde::Serialize + Send + Sync + 'static> MailboxConnection<V> {
             RendezvousServer::connect(&config.id, &config.rendezvous_url).await?;
         let nameplate = code.nameplate();
 
-        // Ensure the code has enough entropy without the nameplate [#193](https://github.com/magic-wormhole/magic-wormhole.rs/issues/193)
+        // Ensure the code has enough entropy without the nameplate
 
         if !allocate {
             let nameplates = server.list_nameplates().await?;
@@ -231,10 +231,10 @@ impl<V: serde::Serialize + Send + Sync + 'static> MailboxConnection<V> {
     /// # Examples
     ///
     /// ```
-    /// # fn main() -> eyre::Result<()> { use magic_wormhole::WormholeError;
+    /// # fn main() -> eyre::Result<()> { use blackhole::WormholeError;
     /// # #[cfg(feature = "entropy")]
     /// return async_io::block_on(async {
-    /// use magic_wormhole::{transfer::APP_CONFIG, MailboxConnection, Mood};
+    /// use blackhole::{transfer::APP_CONFIG, MailboxConnection, Mood};
     /// let config = APP_CONFIG;
     /// let mailbox_connection = MailboxConnection::create_with_password(config, "secret-code-password".parse()?)
     ///     .await?;
@@ -672,7 +672,7 @@ pub struct Nameplate(String);
 impl Nameplate {
     /// Create a new nameplate from a string.
     ///
-    /// Safety: Nameplate will be [required to be numbers](https://github.com/magic-wormhole/magic-wormhole-mailbox-server/issues/45) soon.
+    /// Safety: Nameplate will be required to be numbers in a future protocol revision.
     #[expect(unsafe_code)]
     #[doc(hidden)]
     pub unsafe fn new_unchecked(n: &str) -> Self {

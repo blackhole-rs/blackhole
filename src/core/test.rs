@@ -8,7 +8,7 @@ use std::{borrow::Cow, str::FromStr, time::Duration};
 #[cfg(feature = "transfer")]
 use crate::transfer;
 use crate::{
-    self as magic_wormhole, AppConfig, AppID, Code, WormholeError, core::MailboxConnection,
+    self as blackhole, AppConfig, AppID, Code, WormholeError, core::MailboxConnection,
     transit, util::timeout,
 };
 use test_log::test;
@@ -29,7 +29,7 @@ macro_rules! test {
 }
 
 pub const TEST_APPID: AppID = AppID(std::borrow::Cow::Borrowed(
-    "magic-wormhole.github.io/magic-wormhole.rs/test",
+    "blackhole-rs.github.io/blackhole/test",
 ));
 
 pub const APP_CONFIG: AppConfig<()> = AppConfig::<()> {
@@ -45,7 +45,7 @@ const TIMEOUT: Duration = Duration::from_secs(60);
 /// Example usage:
 ///
 /// ```no_run
-/// use magic_wormhole as mw;
+/// use blackhole as mw;
 /// # async_io::block_on(async {
 /// # let derived_key = unimplemented!();
 /// # let their_abilities = unimplemented!();
@@ -234,9 +234,9 @@ async fn file_offers()
 
     Ok(vec![
         offer("example-file.bin").await?,
-        /* Empty file: https://github.com/magic-wormhole/magic-wormhole.rs/issues/160 */
+        /* Empty file regression case */
         offer("example-file-empty").await?,
-        /* 4k file: https://github.com/magic-wormhole/magic-wormhole.rs/issues/152 */
+        /* 4k file regression case */
         offer("example-file-4096.bin").await?,
     ])
 }
@@ -263,7 +263,7 @@ async fn test_file_rust2rust() {
                 transfer::send(
                     wormhole,
                     default_relay_hints(),
-                    magic_wormhole::transit::Abilities::ALL,
+                    blackhole::transit::Abilities::ALL,
                     offer,
                     &log_transit_connection,
                     |_sent, _total| {},
@@ -288,7 +288,7 @@ async fn test_file_rust2rust() {
             /*let transfer::ReceiveRequest::V1(req) = transfer::request(
                 wormhole,
                 default_relay_hints(),
-                magic_wormhole::transit::Abilities::ALL,
+                blackhole::transit::Abilities::ALL,
                 futures::future::pending(),
             )
             .await?
@@ -299,7 +299,7 @@ async fn test_file_rust2rust() {
             let req = transfer::request_file(
                 wormhole,
                 default_relay_hints(),
-                magic_wormhole::transit::Abilities::ALL,
+                blackhole::transit::Abilities::ALL,
                 futures::future::pending(),
             )
             .await?
@@ -358,7 +358,7 @@ async fn test_send_many() {
                     crate::transfer::send(
                         wormhole,
                         default_relay_hints(),
-                        magic_wormhole::transit::Abilities::ALL,
+                        blackhole::transit::Abilities::ALL,
                         gen_offer().await?,
                         &log_transit_connection,
                         |_, _| {},
@@ -385,7 +385,7 @@ async fn test_send_many() {
                     crate::transfer::send(
                         wormhole,
                         default_relay_hints(),
-                        magic_wormhole::transit::Abilities::ALL,
+                        blackhole::transit::Abilities::ALL,
                         gen_offer().await?,
                         &log_transit_connection,
                         |_, _| {},
@@ -416,7 +416,7 @@ async fn test_send_many() {
         let req = transfer::request_file(
             wormhole,
             default_relay_hints(),
-            magic_wormhole::transit::Abilities::ALL,
+            blackhole::transit::Abilities::ALL,
             futures::future::pending(),
         )
         .await
@@ -509,8 +509,8 @@ async fn test_crowded() {
         .err()
         .unwrap()
     {
-        magic_wormhole::WormholeError::ServerError(
-            magic_wormhole::rendezvous::RendezvousError::Server(error),
+        blackhole::WormholeError::ServerError(
+            blackhole::rendezvous::RendezvousError::Server(error),
         ) => {
             assert_eq!(&*error, "crowded")
         },
@@ -525,7 +525,7 @@ async fn test_connect_with_code_expecting_nameplate() {
     let result = MailboxConnection::connect(APP_CONFIG, code.clone(), false).await;
     let error = result.err().unwrap();
     match error {
-        magic_wormhole::WormholeError::UnclaimedNameplate(x) => {
+        blackhole::WormholeError::UnclaimedNameplate(x) => {
             assert_eq!(x, code.nameplate());
         },
         other => panic!("Got wrong error type {other:?}. Expected `NameplateNotFound`"),

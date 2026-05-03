@@ -1,7 +1,8 @@
-//! Custom magic wormhole URI scheme
+//! Custom Blackhole URI scheme
 //!
-//! At the moment, only `wormhole-transfer:` is specified as scheme
-//! and therefore URLs can only be used for file transfer applications.
+//! At the moment, only `blackhole-transfer:` is specified as the primary scheme.
+//! `wormhole-transfer:` is accepted on parse for backward compatibility with
+//! magic-wormhole share links; outbound URLs always use `blackhole-transfer:`.
 //! This, however, might change in the future.
 
 use super::*;
@@ -10,11 +11,11 @@ use super::*;
 #[derive(Debug, thiserror::Error, Clone, Eq, PartialEq)]
 #[non_exhaustive]
 pub enum ParseError {
-    /// Wrong URI scheme, must be `wormhole-transfer``
-    #[error("Wrong URI scheme, must be 'wormhole-transfer' but was '{_0}'")]
+    /// Wrong URI scheme, must be `blackhole-transfer` (or legacy `wormhole-transfer`)
+    #[error("Wrong URI scheme, must be 'blackhole-transfer' but was '{_0}'")]
     SchemeError(String),
-    /// Wormhole URIs start with `wormhole-transfer:${{code}}`, they do not have a host
-    #[error("Wormhole URIs start with 'wormhole-transfer:${{code}}', they do not have a host")]
+    /// Blackhole URIs start with `blackhole-transfer:${{code}}`, they do not have a host
+    #[error("Blackhole URIs start with 'blackhole-transfer:${{code}}', they do not have a host")]
     HasHost,
     /// Code is missing or empty
     #[error("Code is missing or empty")]
@@ -44,7 +45,7 @@ pub enum ParseError {
     ParseCodeError(#[from] ParseCodeError),
 }
 
-/// The wormhole-transfer URI Scheme is used to encode a wormhole code for file transfer as a URI.
+/// The blackhole-transfer URI Scheme is used to encode a wormhole code for file transfer as a URI.
 /// This can then be used to generate QR codes, or be opened by the platform URI handler to open a supporting client.
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct WormholeTransferUri {
@@ -80,7 +81,7 @@ impl TryFrom<&url::Url> for WormholeTransferUri {
         use std::ops::Deref;
 
         match url.scheme() {
-            "wormhole-transfer" => {},
+            "blackhole-transfer" | "wormhole-transfer" => {},
             other => return Err(ParseError::SchemeError(other.into())),
         }
         if url.has_host() {
@@ -141,7 +142,7 @@ impl std::str::FromStr for WormholeTransferUri {
 
 impl From<&WormholeTransferUri> for url::Url {
     fn from(val: &WormholeTransferUri) -> Self {
-        let mut url = url::Url::parse("wormhole-transfer:").unwrap();
+        let mut url = url::Url::parse("blackhole-transfer:").unwrap();
         url.set_path(val.code.as_str());
         /* Only do this if there are any query parameteres at all, otherwise the URL will have an ugly trailing '?'. */
         if val.rendezvous_server.is_some() || val.is_leader {
@@ -178,12 +179,12 @@ mod test {
     fn test_uri() {
         test_eq(
             WormholeTransferUri::new("4-hurricane-equipment".parse().unwrap()),
-            "wormhole-transfer:4-hurricane-equipment",
+            "blackhole-transfer:4-hurricane-equipment",
         );
 
         test_eq(
             WormholeTransferUri::new("8-🙈-🙉-🙊".parse().unwrap()),
-            "wormhole-transfer:8-%F0%9F%99%88-%F0%9F%99%89-%F0%9F%99%8A",
+            "blackhole-transfer:8-%F0%9F%99%88-%F0%9F%99%89-%F0%9F%99%8A",
         );
 
         test_eq(
@@ -192,7 +193,18 @@ mod test {
                 rendezvous_server: Some(url::Url::parse("ws://localhost:4000").unwrap()),
                 is_leader: true,
             },
-            "wormhole-transfer:8-%F0%9F%99%88-%F0%9F%99%89-%F0%9F%99%8A?rendezvous=ws%3A%2F%2Flocalhost%3A4000%2F&role=leader",
+            "blackhole-transfer:8-%F0%9F%99%88-%F0%9F%99%89-%F0%9F%99%8A?rendezvous=ws%3A%2F%2Flocalhost%3A4000%2F&role=leader",
+        );
+    }
+
+    #[test]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    fn test_uri_legacy_wormhole_scheme() {
+        assert_eq!(
+            "wormhole-transfer:4-hurricane-equipment"
+                .parse::<WormholeTransferUri>()
+                .unwrap(),
+            WormholeTransferUri::new("4-hurricane-equipment".parse().unwrap()),
         );
     }
 
@@ -200,11 +212,11 @@ mod test {
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     fn test_uri_err() {
         assert_eq!(
-            "wormhole-transfer:8-%F0%9F%99%88-%F0%9F%99%89-%F0%9F%99%8A?version=42&rendezvous=ws%3A%2F%2Flocalhost%3A4000%2F&role=leader".parse::<WormholeTransferUri>(),
+            "blackhole-transfer:8-%F0%9F%99%88-%F0%9F%99%89-%F0%9F%99%8A?version=42&rendezvous=ws%3A%2F%2Flocalhost%3A4000%2F&role=leader".parse::<WormholeTransferUri>(),
             Err(ParseError::UnsupportedVersion("42".into()))
         );
         assert_eq!(
-            "wormhole-transfer:?rendezvous=ws%3A%2F%2Flocalhost%3A4000%2F&role=leader"
+            "blackhole-transfer:?rendezvous=ws%3A%2F%2Flocalhost%3A4000%2F&role=leader"
                 .parse::<WormholeTransferUri>(),
             Err(ParseError::MissingCode)
         );

@@ -11,8 +11,8 @@ authors = [
 ]
 description = "Get things from one computer to another, safely"
 keywords = ["blackhole", "wormhole", "file-transfer", "transfer"]
-homepage = "http://magic-wormhole.io/"
-repository = "https://github.com/magic-wormhole/magic-wormhole.rs/tree/main/cli"
+homepage = "https://blackhole.rs/"
+repository = "https://github.com/blackhole-rs/blackhole"
 license = "EUPL-1.2"
 
 rust-version = "1.92"
@@ -79,7 +79,7 @@ wasmtimer = "0.4"
 [package]
 name = "blackhole"
 categories = ["network-programming", "asynchronous"]
-documentation = "https://docs.rs/magic-wormhole/latest/"
+documentation = "https://docs.rs/blackhole/latest/"
 readme = "README.md"
 
 version.workspace = true

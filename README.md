@@ -1,71 +1,78 @@
-# Rusty Wormhole
+<p align="center">
+  <a href="https://blackhole.rs">
+    <img src="https://github.com/blackhole-rs/.github/blob/main/profile/blackhole.png?raw=true" alt="Blackhole" width="160">
+  </a>
+</p>
 
-Get things from one computer to another, safely.
+<h1 align="center">Blackhole</h1>
 
-<http://magic-wormhole.io/>
+<p align="center"><em>Send things into the void, safely.</em></p>
 
-This is a Rust port of the Python version at <https://github.com/magic-wormhole/magic-wormhole>.
+<p align="center">
+  Protocol library, CLI, and server components for end&#8209;to&#8209;end encrypted, ephemeral file transfer.<br/>
+  Same primitives as <a href="https://github.com/magic-wormhole/magic-wormhole">magic&#8209;wormhole</a>.
+</p>
 
-## Comparison with the Python implementation
+<p align="center">
+  <a href="https://github.com/blackhole-rs/blackhole/blob/main/LICENSE">
+    <img alt="License: EUPL-1.2" src="https://img.shields.io/badge/license-EUPL--1.2-86d8f5?style=flat-square">
+  </a>
+  <a href="https://discord.gg/dA4jCZCcD3">
+    <img alt="Discord" src="https://img.shields.io/badge/chat-Discord-8b7cff?style=flat-square&logo=discord&logoColor=white">
+  </a>
+</p>
 
-Features that are missing:
+---
 
-- Text message sending
-- Folder sending (we can send folders, but it will send a tar ball which the other side will have to manually unpack)
-- Tor support
+This repository is the Rust core of Blackhole: the protocol library, the CLI client, and the rendezvous (mailbox) and transit relay servers. The browser app lives at [`blackhole-rs/blackhole-rs`](https://github.com/blackhole-rs/blackhole-rs) and consumes this code.
 
-New features that exceed the other implementations:
+## Layout
 
-- Can do direct connections across the internet (NATs) and firewalls
-- Automatically copies your code to the clipboard
-- Port forwarding in addition to file transfer (experimental)
-- Send a file to multiple people (experimental)
-- Fuzzy wormhole code completion
+```
+.            library crate `blackhole` — protocol, transit, transfer
+cli/         binary crate `blackhole-cli` — `blackhole` CLI
+mailbox/     binary crate `blackhole-mailbox` — rendezvous server (WIP)
+transit/     binary crate `blackhole-transit` — transit relay (WIP)
+```
 
-## Getting started
+## Quick start
 
-If you want to toy with the CLI, `cargo run -- --help` will get you started. The code sits in `./cli/src`. For more instructions see [cli/README.md](cli/README.md).
+```sh
+# Build everything
+cargo check --workspace
 
-If you'd like to use Wormhole in your application, `cargo doc --open` will tell you how to use it. There aren't any hosted docs at the moment.
+# Run the CLI
+cargo run --bin blackhole -- --help
 
-If you don't fear touching code and want to contribute, `./src/lib.rs`, `./src/transfer.rs` and `./src/transit.rs` are rather easy to get into. The [protocol specification](https://github.com/magic-wormhole/magic-wormhole-protocols) will probably be useful to you.
+# Run a server (skeletons today, real implementations coming)
+cargo run -p blackhole-mailbox
+cargo run -p blackhole-transit
+```
 
-## Applications using Wormhole Rust as library
+## Status
 
-- [Warp](https://gitlab.gnome.org/World/warp), a GUI client using Gtk
-- [Wormhole File Transfer](https://github.com/wormhole-app/wormhole), a Android client using Flutter
-- [Wyrmhole](https://github.com/ClaytonWas/wyrmhole), a cross-platform GUI using Tauri
-- [rvIRC](https://github.com/KaraZajac/rvIRC), a vim-based IRC client with filesharing
+| Component | State |
+| --- | --- |
+| `blackhole` (library) | Working — fork of `magic-wormhole.rs` |
+| `blackhole-cli` | Working — sends/receives via upstream relays for now |
+| `blackhole-mailbox` | Skeleton — port of Python `magic-wormhole-mailbox-server` is the next milestone |
+| `blackhole-transit` | Skeleton — port of Python `magic-wormhole-transit-relay` to follow |
 
-(feel free to add yours)
+## Contributing
+
+Read [AI_POLICY.md](./AI_POLICY.md) before opening a PR or issue. We use [`vouch`](https://github.com/mitchellh/vouch) to gate participation; unvouched contributions are auto-closed.
+
+## Credit
+
+This project is a fork of [`magic-wormhole.rs`](https://github.com/magic-wormhole/magic-wormhole.rs) by Fina Wilke, piegames, Brian Warner, and contributors. The wormhole protocol is the work of Brian Warner and the [magic-wormhole](https://github.com/magic-wormhole/magic-wormhole) project. Mailbox and transit servers are ports of the Python reference implementations.
 
 ## License
 
-This work is licensed under the EUPL v1.2 or later. Contact the owner(s) for use in proprietary software.
+Mixed, per crate:
 
-----------
-
-[![Matrix][matrix-room-image]][matrix-room-url]
-[![Irc][irc-room-image]][irc-room-url]
-![Build Status][build-status-image]
-[![Deps][deps-status-image]][deps-status-url]
-[![Codecov][codecov-image]][codecov-url]
-[![Is-It-Maintained-Resolution-Time][iim-resolution-image]][iim-resolution-url]
-[![Crates.io][crates-io-image]][crates-io-url]
-[![Docs.rs][docs-image]][docs-url]
-
-[matrix-room-image]: https://img.shields.io/badge/matrix.org-%23magic--wormhole-brightgreen
-[matrix-room-url]: https://matrix.to/#/#magic-wormhole:matrix.org
-[irc-room-image]: https://img.shields.io/badge/irc.libera.chat-%23magic--wormhole-brightgreen
-[irc-room-url]: https://web.libera.chat/
-[build-status-image]: https://github.com/magic-wormhole/magic-wormhole.rs/workflows/Rust/badge.svg
-[deps-status-image]: https://deps.rs/repo/github/magic-wormhole/magic-wormhole.rs/status.svg
-[deps-status-url]: https://deps.rs/repo/github/magic-wormhole/magic-wormhole.rs
-[codecov-image]: https://codecov.io/gh/magic-wormhole/magic-wormhole.rs/branch/main/graph/badge.svg
-[codecov-url]: https://codecov.io/gh/magic-wormhole/magic-wormhole.rs
-[crates-io-image]: https://img.shields.io/crates/v/magic-wormhole.svg
-[crates-io-url]: https://crates.io/crates/magic-wormhole
-[docs-image]: https://docs.rs/magic-wormhole/badge.svg
-[docs-url]: https://docs.rs/magic-wormhole
-[iim-resolution-image]: http://isitmaintained.com/badge/resolution/magic-wormhole/magic-wormhole.rs.svg
-[iim-resolution-url]: http://isitmaintained.com/project/magic-wormhole/magic-wormhole.rs
+| Crate | License | Reason |
+| --- | --- | --- |
+| `blackhole` (library) | [EUPL-1.2](./LICENSE) | Preserved from upstream `magic-wormhole.rs` |
+| `blackhole-cli` | EUPL-1.2 | Statically links the EUPL library |
+| `blackhole-mailbox` | [MIT](./mailbox/LICENSE) | Clean port of MIT-licensed `magic-wormhole-mailbox-server` |
+| `blackhole-transit` | [MIT](./transit/LICENSE) | Clean port of MIT-licensed `magic-wormhole-transit-relay` |

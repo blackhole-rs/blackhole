@@ -42,7 +42,7 @@ pub use v1::ReceiveRequest;
 #[cfg(feature = "experimental-transfer-v2")]
 pub use v2::ReceiveRequest as ReceiveRequestV2;
 
-const APPID_RAW: &str = "lothar.com/wormhole/text-or-file-xfer";
+const APPID_RAW: &str = "blackhole.rs/file-transfer";
 
 /// The App ID associated with this protocol.
 pub const APPID: AppID = AppID(Cow::Borrowed(APPID_RAW));
@@ -677,7 +677,7 @@ mod test {
             [DirectHint::new("192.168.1.8", 46295)],
             [RelayHint::new(
                 None,
-                [DirectHint::new("magic-wormhole-transit.debian.net", 4001)],
+                [DirectHint::new("transit.blackhole.rs", 4001)],
                 [],
             )],
         );
@@ -691,7 +691,7 @@ mod test {
                         {
                             "type": "relay-v1",
                             "hints": [
-                                {"type": "direct-tcp-v1", "hostname": "magic-wormhole-transit.debian.net", "port": 4001}
+                                {"type": "direct-tcp-v1", "hostname": "transit.blackhole.rs", "port": 4001}
                             ],
                             "name": null
                         }

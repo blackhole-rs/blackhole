@@ -38,7 +38,7 @@ use crypto::TransitHandshakeError;
 use transport::{TransitTransport, TransitTransportRx, TransitTransportTx};
 
 /// ULR to a default hosted relay server. Please don't abuse or DOS.
-pub const DEFAULT_RELAY_SERVER: &str = "tcp://transit.magic-wormhole.io:4001";
+pub const DEFAULT_RELAY_SERVER: &str = "tcp://transit.blackhole.rs:4001";
 // No need to make public, it's hard-coded anyways (:
 // Open an issue if you want an API for this
 // Use <stun.stunprotocol.org:3478> for non-production testing
@@ -1492,8 +1492,8 @@ mod test {
                 }],
                 [RelayHint::new(
                     Some("default".into()),
-                    [DirectHint::new("transit.magic-wormhole.io", 4001)],
-                    ["ws://transit.magic-wormhole.io/relay".parse().unwrap(),],
+                    [DirectHint::new("transit.blackhole.rs", 4001)],
+                    ["ws://transit.blackhole.rs/relay".parse().unwrap(),],
                 )]
             ))
             .unwrap(),
@@ -1509,12 +1509,12 @@ mod test {
                     "hints": [
                         {
                             "type": "direct-tcp-v1",
-                            "hostname": "transit.magic-wormhole.io",
+                            "hostname": "transit.blackhole.rs",
                             "port": 4001,
                         },
                         {
                             "type": "websocket",
-                            "url": "ws://transit.magic-wormhole.io/relay",
+                            "url": "ws://transit.blackhole.rs/relay",
                         },
                     ]
                 }

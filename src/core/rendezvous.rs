@@ -15,7 +15,7 @@ use crate::core::{
 /// Some rendezvous server you might use.
 ///
 /// Two applications that want to communicate with each other *must* use the same rendezvous server.
-pub const DEFAULT_RENDEZVOUS_SERVER: &str = "ws://relay.magic-wormhole.io:4000/v1";
+pub const DEFAULT_RENDEZVOUS_SERVER: &str = "ws://relay.blackhole.rs:4000/v1";
 
 /// An error occurred when connecting to the rendezvous server
 #[derive(Debug, thiserror::Error)]
