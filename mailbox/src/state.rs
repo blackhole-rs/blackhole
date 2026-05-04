@@ -162,12 +162,12 @@ impl Store for InMemoryStore {
 
     async fn release_nameplate(&self, appid: &str, nameplate: &str, side: &str) -> Result<()> {
         let mut apps = self.apps.lock().unwrap();
-        if let Some(app) = apps.get_mut(appid) {
-            if let Some(entry) = app.nameplates.get_mut(nameplate) {
-                entry.sides.remove(side);
-                if entry.sides.is_empty() {
-                    app.nameplates.remove(nameplate);
-                }
+        if let Some(app) = apps.get_mut(appid)
+            && let Some(entry) = app.nameplates.get_mut(nameplate)
+        {
+            entry.sides.remove(side);
+            if entry.sides.is_empty() {
+                app.nameplates.remove(nameplate);
             }
         }
         Ok(())

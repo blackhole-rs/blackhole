@@ -593,6 +593,7 @@ where
  */
 #[must_use]
 #[cfg(feature = "experimental-transfer-v2")]
+#[allow(clippy::large_enum_variant)] // Upstream type; boxing changes the public API.
 pub enum ReceiveRequest {
     /// A protocol version 1 receive request
     V1(ReceiveRequestV1),
