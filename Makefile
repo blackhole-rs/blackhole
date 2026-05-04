@@ -1,24 +1,28 @@
 # Blackhole development tasks. Run `make help` for the menu.
 #
 # Tool prerequisites (install once):
-#   - rustup + nightly + rustfmt:  curl https://sh.rustup.rs | sh && rustup toolchain install nightly --component rustfmt
-#   - cargo-deny:                  cargo install cargo-deny
-#   - act (CI locally via Docker): brew install act
-#   - Docker:                      Docker Desktop or `colima start`
+#   curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+#   rustup toolchain install stable --component clippy
+#   rustup toolchain install nightly --component rustfmt
+#   cargo install cargo-deny
+#   brew install act      # for `make act-*` targets
+#   # Docker Desktop or `colima start` for `make act-*` and `make compose-up`.
 
-CARGO ?= cargo
-ACT   ?= act
-# rustfmt's unstable features (imports_granularity, match_block_trailing_comma)
-# require nightly. We invoke rustup's cargo by absolute path so that fmt works
-# even if rustup isn't on $PATH (Homebrew rust users).
+ACT ?= act
+# We invoke rustup's cargo by absolute path so the Makefile works even if
+# rustup isn't on $PATH (e.g., for Homebrew rust users who installed rustup
+# with --no-modify-path). Toolchain selection is explicit per-target.
 RUSTUP_CARGO ?= $(HOME)/.cargo/bin/cargo
+STABLE  := $(RUSTUP_CARGO) +stable
+NIGHTLY := $(RUSTUP_CARGO) +nightly
 
 # Network-dependent upstream tests skipped by default; mirrors push.yml.
 TEST_SKIPS := --skip test_crowded --skip test_connect_with --skip test_send_many \
               --skip test_wrong_code --skip test_file_rust2rust
 
-.PHONY: help build test test-all fmt fmt-check clippy deny ci ci-fmt ci-clippy ci-test \
-        ci-deny smoke compose-up compose-down compose-logs mailbox-run transit-run
+.PHONY: help build test test-all fmt fmt-check clippy clippy-strict deny ci \
+        act act-fmt act-clippy act-test act-deny \
+        smoke compose-up compose-down compose-logs mailbox-run transit-run
 
 help: ## Show this help.
 	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z_-]+:.*?##/ {printf "  \033[36m%-16s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
@@ -26,40 +30,52 @@ help: ## Show this help.
 # --- local checks ---
 
 build: ## Build the workspace.
-	$(CARGO) build --workspace
+	$(STABLE) build --workspace
 
 test: ## Run unit tests, skipping upstream network-dependent tests.
-	$(CARGO) test --workspace -- $(TEST_SKIPS)
+	$(STABLE) test --workspace -- $(TEST_SKIPS)
 
 test-all: ## Run every test (requires reachable rendezvous server for upstream tests).
-	$(CARGO) test --workspace
+	$(STABLE) test --workspace
 
 fmt: ## Apply nightly rustfmt across the workspace.
-	$(RUSTUP_CARGO) +nightly fmt --all
+	$(NIGHTLY) fmt --all
 
 fmt-check: ## Verify the workspace is rustfmt-clean (matches CI).
-	$(RUSTUP_CARGO) +nightly fmt --all -- --check
+	$(NIGHTLY) fmt --all -- --check
 
-clippy: ## Run clippy with warnings as errors.
-	$(CARGO) clippy --workspace --all-features -- -D warnings
+clippy: ## Run clippy (matches CI scope: default members, all features).
+	$(STABLE) clippy --all-features
+
+clippy-strict: ## Stricter local clippy: whole workspace, warnings as errors.
+	RUSTFLAGS="-D warnings" $(STABLE) clippy --workspace --all-features
 
 deny: ## Run cargo-deny (advisories, licenses, bans, sources).
-	$(CARGO) deny check
+	$(STABLE) deny check
 
-# --- CI mirroring via act ---
+# --- CI parity ---
+# `make ci` runs the same checks CI does, but natively — no Docker or qemu.
+# Faster, more reliable. The `act-*` targets below are an opt-in heavier path
+# that runs the actual workflow inside Docker; useful when modifying push.yml.
 
-ci: ci-fmt ci-clippy ci-deny ci-test ## Run the cheap CI jobs locally via act.
+ci: fmt-check clippy deny test ## Mirror the cheap CI checks natively (no Docker).
 
-ci-fmt: ## Run the Cargo Format CI job locally.
+# act-based runners. Known issue: Swatinem/rust-cache (pulled in by
+# actions-rust-lang/setup-rust-toolchain) crashes on missing `node` in PATH
+# when running through act + qemu emulation on Apple Silicon. Use these only
+# when you need to validate workflow-file changes themselves.
+act: act-fmt act-clippy act-deny act-test ## Run the cheap CI jobs in local Docker via act.
+
+act-fmt: ## Run the Cargo Format job under act.
 	$(ACT) -j formatting --workflows .github/workflows/push.yml
 
-ci-clippy: ## Run the Clippy CI job locally.
+act-clippy: ## Run the Clippy job under act.
 	$(ACT) -j clippy --workflows .github/workflows/push.yml
 
-ci-test: ## Run the Test CI job locally (matrix; will be slow).
+act-test: ## Run the Test job under act (matrix; very slow under qemu).
 	$(ACT) -j test --workflows .github/workflows/push.yml
 
-ci-deny: ## Run the Cargo deny CI job locally.
+act-deny: ## Run the Cargo deny job under act.
 	$(ACT) -j cargo-deny --workflows .github/workflows/push.yml
 
 # --- end-to-end ---
@@ -77,7 +93,7 @@ compose-logs: ## Tail logs from the composed services.
 	docker compose logs -f
 
 mailbox-run: ## Run blackhole-mailbox locally on 127.0.0.1:4000 (in-memory store).
-	$(CARGO) run -p blackhole-mailbox -- --listen 127.0.0.1:4000
+	$(STABLE) run -p blackhole-mailbox -- --listen 127.0.0.1:4000
 
 transit-run: ## Run blackhole-transit locally on 127.0.0.1:4001.
-	$(CARGO) run -p blackhole-transit -- --listen 127.0.0.1:4001
+	$(STABLE) run -p blackhole-transit -- --listen 127.0.0.1:4001
