@@ -172,12 +172,11 @@ impl Store for PostgresStore {
     }
 
     async fn list_nameplates(&self, appid: &str) -> StoreResult<Vec<String>> {
-        let rows: Vec<(String,)> = sqlx::query_as(
-            "SELECT nameplate FROM nameplates WHERE appid = $1 ORDER BY nameplate",
-        )
-        .bind(appid)
-        .fetch_all(&self.pool)
-        .await?;
+        let rows: Vec<(String,)> =
+            sqlx::query_as("SELECT nameplate FROM nameplates WHERE appid = $1 ORDER BY nameplate")
+                .bind(appid)
+                .fetch_all(&self.pool)
+                .await?;
         Ok(rows.into_iter().map(|(n,)| n).collect())
     }
 
@@ -232,13 +231,12 @@ impl Store for PostgresStore {
         body: &str,
     ) -> StoreResult<Vec<Tx>> {
         // Only persist if the mailbox still exists. Otherwise drop silently like the in-memory impl.
-        let exists: Option<(i64,)> = sqlx::query_as(
-            "SELECT 1::bigint FROM mailboxes WHERE appid = $1 AND mailbox_id = $2",
-        )
-        .bind(appid)
-        .bind(mailbox_id)
-        .fetch_optional(&self.pool)
-        .await?;
+        let exists: Option<(i64,)> =
+            sqlx::query_as("SELECT 1::bigint FROM mailboxes WHERE appid = $1 AND mailbox_id = $2")
+                .bind(appid)
+                .bind(mailbox_id)
+                .fetch_optional(&self.pool)
+                .await?;
         if exists.is_none() {
             return Ok(Vec::new());
         }

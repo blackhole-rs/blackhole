@@ -5,15 +5,32 @@ use serde::{Deserialize, Serialize};
 #[serde(tag = "type", rename_all = "kebab-case")]
 pub enum ClientMessage {
     SubmitPermission(SubmitPermission),
-    Bind { appid: String, side: String },
+    Bind {
+        appid: String,
+        side: String,
+    },
     List,
     Allocate,
-    Claim { nameplate: String },
-    Release { nameplate: Option<String> },
-    Open { mailbox: String },
-    Add { phase: String, body: String },
-    Close { mailbox: Option<String>, mood: Option<String> },
-    Ping { ping: u64 },
+    Claim {
+        nameplate: String,
+    },
+    Release {
+        nameplate: Option<String>,
+    },
+    Open {
+        mailbox: String,
+    },
+    Add {
+        phase: String,
+        body: String,
+    },
+    Close {
+        mailbox: Option<String>,
+        mood: Option<String>,
+    },
+    Ping {
+        ping: u64,
+    },
 }
 
 #[allow(dead_code)]
@@ -26,12 +43,20 @@ pub enum SubmitPermission {
 #[derive(Debug, Clone, Serialize)]
 #[serde(tag = "type", rename_all = "kebab-case")]
 pub enum ServerMessage {
-    Welcome { welcome: Welcome },
+    Welcome {
+        welcome: Welcome,
+    },
     Ack,
-    Allocated { nameplate: String },
-    Claimed { mailbox: String },
+    Allocated {
+        nameplate: String,
+    },
+    Claimed {
+        mailbox: String,
+    },
     Released,
-    Nameplates { nameplates: Vec<NameplateEntry> },
+    Nameplates {
+        nameplates: Vec<NameplateEntry>,
+    },
     Message {
         side: String,
         phase: String,
@@ -39,8 +64,13 @@ pub enum ServerMessage {
         id: Option<String>,
     },
     Closed,
-    Pong { pong: u64 },
-    Error { error: String, orig: serde_json::Value },
+    Pong {
+        pong: u64,
+    },
+    Error {
+        error: String,
+        orig: serde_json::Value,
+    },
 }
 
 #[derive(Debug, Clone, Default, Serialize)]
@@ -57,7 +87,7 @@ pub struct NameplateEntry {
 #[cfg(test)]
 mod test {
     use super::*;
-    use serde_json::{json, from_value, to_value};
+    use serde_json::{from_value, json, to_value};
 
     #[test]
     fn parse_bind() {
@@ -67,7 +97,7 @@ mod test {
             ClientMessage::Bind { appid, side } => {
                 assert_eq!(appid, "app");
                 assert_eq!(side, "abc123");
-            }
+            },
             _ => panic!("wrong variant"),
         }
     }
@@ -87,7 +117,7 @@ mod test {
             ClientMessage::Add { phase, body } => {
                 assert_eq!(phase, "pake");
                 assert_eq!(body, "deadbeef");
-            }
+            },
             _ => panic!("wrong variant"),
         }
     }
@@ -100,26 +130,41 @@ mod test {
             ClientMessage::Close { mailbox, mood } => {
                 assert_eq!(mailbox.as_deref(), Some("mb1"));
                 assert_eq!(mood.as_deref(), Some("happy"));
-            }
+            },
             _ => panic!("wrong variant"),
         }
     }
 
     #[test]
     fn serialize_welcome() {
-        let w = ServerMessage::Welcome { welcome: Welcome { motd: Some("hi".into()) } };
-        assert_eq!(to_value(&w).unwrap(), json!({"type": "welcome", "welcome": {"motd": "hi"}}));
+        let w = ServerMessage::Welcome {
+            welcome: Welcome {
+                motd: Some("hi".into()),
+            },
+        };
+        assert_eq!(
+            to_value(&w).unwrap(),
+            json!({"type": "welcome", "welcome": {"motd": "hi"}})
+        );
     }
 
     #[test]
     fn serialize_ack() {
-        assert_eq!(to_value(ServerMessage::Ack).unwrap(), json!({"type": "ack"}));
+        assert_eq!(
+            to_value(ServerMessage::Ack).unwrap(),
+            json!({"type": "ack"})
+        );
     }
 
     #[test]
     fn serialize_allocated() {
-        let m = ServerMessage::Allocated { nameplate: "4".into() };
-        assert_eq!(to_value(&m).unwrap(), json!({"type": "allocated", "nameplate": "4"}));
+        let m = ServerMessage::Allocated {
+            nameplate: "4".into(),
+        };
+        assert_eq!(
+            to_value(&m).unwrap(),
+            json!({"type": "allocated", "nameplate": "4"})
+        );
     }
 
     #[test]
@@ -139,7 +184,10 @@ mod test {
     #[test]
     fn serialize_nameplates() {
         let m = ServerMessage::Nameplates {
-            nameplates: vec![NameplateEntry { id: "4".into() }, NameplateEntry { id: "7".into() }],
+            nameplates: vec![
+                NameplateEntry { id: "4".into() },
+                NameplateEntry { id: "7".into() },
+            ],
         };
         assert_eq!(
             to_value(&m).unwrap(),
@@ -172,7 +220,7 @@ mod test {
             ClientMessage::Close { mailbox, mood } => {
                 assert!(mailbox.is_none());
                 assert!(mood.is_none());
-            }
+            },
             _ => panic!("wrong variant"),
         }
     }
@@ -201,7 +249,7 @@ mod test {
         match msg {
             ClientMessage::SubmitPermission(SubmitPermission::Hashcash { stamp }) => {
                 assert_eq!(stamp, "xyz");
-            }
+            },
             _ => panic!("wrong variant"),
         }
     }
@@ -231,7 +279,10 @@ mod test {
     #[test]
     fn serialize_claimed_and_released() {
         assert_eq!(
-            to_value(ServerMessage::Claimed { mailbox: "mb-1".into() }).unwrap(),
+            to_value(ServerMessage::Claimed {
+                mailbox: "mb-1".into()
+            })
+            .unwrap(),
             json!({"type": "claimed", "mailbox": "mb-1"})
         );
         assert_eq!(

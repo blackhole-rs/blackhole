@@ -27,7 +27,12 @@ pub struct HistoryMessage {
 #[async_trait]
 pub trait Store: Send + Sync {
     async fn allocate_nameplate(&self, appid: &str, side: &str) -> Result<String>;
-    async fn claim_nameplate(&self, appid: &str, nameplate: &str, side: &str) -> Result<Option<String>>;
+    async fn claim_nameplate(
+        &self,
+        appid: &str,
+        nameplate: &str,
+        side: &str,
+    ) -> Result<Option<String>>;
     async fn release_nameplate(&self, appid: &str, nameplate: &str, side: &str) -> Result<()>;
     async fn list_nameplates(&self, appid: &str) -> Result<Vec<String>>;
     async fn open_mailbox(
@@ -130,17 +135,27 @@ impl Store for InMemoryStore {
         }
     }
 
-    async fn claim_nameplate(&self, appid: &str, nameplate: &str, side: &str) -> Result<Option<String>> {
+    async fn claim_nameplate(
+        &self,
+        appid: &str,
+        nameplate: &str,
+        side: &str,
+    ) -> Result<Option<String>> {
         let mut apps = self.apps.lock().unwrap();
         let app = apps.entry(appid.to_string()).or_default();
-        let Some(entry) = app.nameplates.get_mut(nameplate) else { return Ok(None) };
+        let Some(entry) = app.nameplates.get_mut(nameplate) else {
+            return Ok(None);
+        };
         entry.sides.insert(side.to_string());
         let mailbox_id = entry.mailbox_id.clone();
-        let mb = app.mailboxes.entry(mailbox_id.clone()).or_insert(MailboxEntry {
-            messages: Vec::new(),
-            claimed_sides: HashSet::new(),
-            open_listeners: HashMap::new(),
-        });
+        let mb = app
+            .mailboxes
+            .entry(mailbox_id.clone())
+            .or_insert(MailboxEntry {
+                messages: Vec::new(),
+                claimed_sides: HashSet::new(),
+                open_listeners: HashMap::new(),
+            });
         mb.claimed_sides.insert(side.to_string());
         Ok(Some(mailbox_id))
     }
@@ -176,13 +191,22 @@ impl Store for InMemoryStore {
     ) -> Result<Vec<HistoryMessage>> {
         let mut apps = self.apps.lock().unwrap();
         let app = apps.entry(appid.to_string()).or_default();
-        let mb = app.mailboxes.entry(mailbox_id.to_string()).or_insert(MailboxEntry {
-            messages: Vec::new(),
-            claimed_sides: HashSet::new(),
-            open_listeners: HashMap::new(),
-        });
+        let mb = app
+            .mailboxes
+            .entry(mailbox_id.to_string())
+            .or_insert(MailboxEntry {
+                messages: Vec::new(),
+                claimed_sides: HashSet::new(),
+                open_listeners: HashMap::new(),
+            });
         mb.claimed_sides.insert(side.to_string());
-        mb.open_listeners.insert(conn_id, Listener { side: side.to_string(), tx });
+        mb.open_listeners.insert(
+            conn_id,
+            Listener {
+                side: side.to_string(),
+                tx,
+            },
+        );
         Ok(mb.messages.clone())
     }
 
@@ -195,8 +219,12 @@ impl Store for InMemoryStore {
         body: &str,
     ) -> Result<Vec<Tx>> {
         let mut apps = self.apps.lock().unwrap();
-        let Some(app) = apps.get_mut(appid) else { return Ok(Vec::new()) };
-        let Some(mb) = app.mailboxes.get_mut(mailbox_id) else { return Ok(Vec::new()) };
+        let Some(app) = apps.get_mut(appid) else {
+            return Ok(Vec::new());
+        };
+        let Some(mb) = app.mailboxes.get_mut(mailbox_id) else {
+            return Ok(Vec::new());
+        };
         mb.messages.push(HistoryMessage {
             side: side.to_string(),
             phase: phase.to_string(),
@@ -213,8 +241,12 @@ impl Store for InMemoryStore {
         conn_id: ConnectionId,
     ) -> Result<()> {
         let mut apps = self.apps.lock().unwrap();
-        let Some(app) = apps.get_mut(appid) else { return Ok(()) };
-        let Some(mb) = app.mailboxes.get_mut(mailbox_id) else { return Ok(()) };
+        let Some(app) = apps.get_mut(appid) else {
+            return Ok(());
+        };
+        let Some(mb) = app.mailboxes.get_mut(mailbox_id) else {
+            return Ok(());
+        };
         mb.open_listeners.remove(&conn_id);
         mb.claimed_sides.remove(side);
         if mb.claimed_sides.is_empty() {
@@ -264,12 +296,19 @@ mod test {
     async fn allocate_then_claim_yields_same_mailbox() {
         let s = InMemoryStore::new();
         let np = s.allocate_nameplate("app", "alice").await.unwrap();
-        let mb = s.claim_nameplate("app", &np, "bob").await.unwrap().expect("claim");
+        let mb = s
+            .claim_nameplate("app", &np, "bob")
+            .await
+            .unwrap()
+            .expect("claim");
         let (tx_a, _ra) = channel();
         let (tx_b, _rb) = channel();
         s.open_mailbox("app", &mb, "alice", 1, tx_a).await.unwrap();
         s.open_mailbox("app", &mb, "bob", 2, tx_b).await.unwrap();
-        let recipients = s.add_message("app", &mb, "alice", "pake", "ff").await.unwrap();
+        let recipients = s
+            .add_message("app", &mb, "alice", "pake", "ff")
+            .await
+            .unwrap();
         assert_eq!(recipients.len(), 2, "both sides should be listening");
     }
 
@@ -280,13 +319,19 @@ mod test {
         let mb = s.claim_nameplate("app", &np, "bob").await.unwrap().unwrap();
         let (tx_a, _ra) = channel();
         s.open_mailbox("app", &mb, "alice", 1, tx_a).await.unwrap();
-        s.add_message("app", &mb, "alice", "pake", "aa").await.unwrap();
+        s.add_message("app", &mb, "alice", "pake", "aa")
+            .await
+            .unwrap();
         let (tx_b, _rb) = channel();
         let history = s.open_mailbox("app", &mb, "bob", 2, tx_b).await.unwrap();
         assert_eq!(history.len(), 1);
         assert_eq!(
             history[0],
-            HistoryMessage { side: "alice".into(), phase: "pake".into(), body: "aa".into() }
+            HistoryMessage {
+                side: "alice".into(),
+                phase: "pake".into(),
+                body: "aa".into()
+            }
         );
     }
 
@@ -311,7 +356,10 @@ mod test {
         s.open_mailbox("app", &mb, "bob", 2, tx_b).await.unwrap();
         s.close_mailbox("app", &mb, "alice", 1).await.unwrap();
         s.close_mailbox("app", &mb, "bob", 2).await.unwrap();
-        let recipients = s.add_message("app", &mb, "alice", "pake", "ff").await.unwrap();
+        let recipients = s
+            .add_message("app", &mb, "alice", "pake", "ff")
+            .await
+            .unwrap();
         assert!(recipients.is_empty());
     }
 
@@ -326,16 +374,25 @@ mod test {
     async fn drop_connection_releases_nameplate_and_closes_mailbox() {
         let s = InMemoryStore::new();
         let np = s.allocate_nameplate("app", "alice").await.unwrap();
-        let mb = s.claim_nameplate("app", &np, "alice").await.unwrap().unwrap();
+        let mb = s
+            .claim_nameplate("app", &np, "alice")
+            .await
+            .unwrap()
+            .unwrap();
         let (tx_a, _ra) = channel();
         s.open_mailbox("app", &mb, "alice", 1, tx_a).await.unwrap();
 
-        s.drop_connection("app", "alice", &[np.clone()], &[mb.clone()], 1).await.unwrap();
+        s.drop_connection("app", "alice", &[np.clone()], &[mb.clone()], 1)
+            .await
+            .unwrap();
 
         // Nameplate gone (alice was the only side).
         assert!(s.list_nameplates("app").await.unwrap().is_empty());
         // Mailbox gone too — adding now is a no-op.
-        let recipients = s.add_message("app", &mb, "alice", "pake", "00").await.unwrap();
+        let recipients = s
+            .add_message("app", &mb, "alice", "pake", "00")
+            .await
+            .unwrap();
         assert!(recipients.is_empty());
     }
 
@@ -353,7 +410,8 @@ mod test {
     #[tokio::test]
     async fn add_message_to_unknown_mailbox_is_noop() {
         let s = InMemoryStore::new();
-        let recipients = s.add_message("app", "missing-mailbox-id", "alice", "pake", "ff")
+        let recipients = s
+            .add_message("app", "missing-mailbox-id", "alice", "pake", "ff")
             .await
             .unwrap();
         assert!(recipients.is_empty());
@@ -363,7 +421,11 @@ mod test {
     async fn second_close_for_same_side_is_idempotent() {
         let s = InMemoryStore::new();
         let np = s.allocate_nameplate("app", "alice").await.unwrap();
-        let mb = s.claim_nameplate("app", &np, "alice").await.unwrap().unwrap();
+        let mb = s
+            .claim_nameplate("app", &np, "alice")
+            .await
+            .unwrap()
+            .unwrap();
         let (tx, _rx) = channel();
         s.open_mailbox("app", &mb, "alice", 1, tx).await.unwrap();
         s.close_mailbox("app", &mb, "alice", 1).await.unwrap();

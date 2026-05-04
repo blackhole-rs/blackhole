@@ -8,8 +8,8 @@ use std::{borrow::Cow, str::FromStr, time::Duration};
 #[cfg(feature = "transfer")]
 use crate::transfer;
 use crate::{
-    self as blackhole, AppConfig, AppID, Code, WormholeError, core::MailboxConnection,
-    transit, util::timeout,
+    self as blackhole, AppConfig, AppID, Code, WormholeError, core::MailboxConnection, transit,
+    util::timeout,
 };
 use test_log::test;
 
@@ -509,9 +509,9 @@ async fn test_crowded() {
         .err()
         .unwrap()
     {
-        blackhole::WormholeError::ServerError(
-            blackhole::rendezvous::RendezvousError::Server(error),
-        ) => {
+        blackhole::WormholeError::ServerError(blackhole::rendezvous::RendezvousError::Server(
+            error,
+        )) => {
             assert_eq!(&*error, "crowded")
         },
         other => panic!("Got wrong error message: {other}, wanted 'crowded'"),

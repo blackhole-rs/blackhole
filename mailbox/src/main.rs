@@ -10,7 +10,11 @@ use tracing::info;
 use tracing_subscriber::EnvFilter;
 
 #[derive(Parser, Debug)]
-#[command(name = "blackhole-mailbox", about = "Blackhole rendezvous (mailbox) server", version)]
+#[command(
+    name = "blackhole-mailbox",
+    about = "Blackhole rendezvous (mailbox) server",
+    version
+)]
 struct Args {
     /// Address to bind the WebSocket listener on.
     #[arg(long, env = "BLACKHOLE_MAILBOX_LISTEN", default_value = "0.0.0.0:4000")]
@@ -24,7 +28,9 @@ struct Args {
 #[tokio::main]
 async fn main() -> Result<()> {
     tracing_subscriber::fmt()
-        .with_env_filter(EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info")))
+        .with_env_filter(
+            EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info")),
+        )
         .with_target(false)
         .init();
 
@@ -34,11 +40,11 @@ async fn main() -> Result<()> {
         Some(url) => {
             info!("using Postgres store");
             postgres_store::PostgresStore::connect(url).await?
-        }
+        },
         None => {
             info!("using in-memory store (state is not persistent)");
             state::InMemoryStore::new()
-        }
+        },
     };
 
     server::run(args.listen, store).await
