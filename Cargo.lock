@@ -537,6 +537,13 @@ dependencies = [
 [[package]]
 name = "blackhole-transit"
 version = "0.8.0"
+dependencies = [
+ "anyhow",
+ "clap",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+]
 
 [[package]]
 name = "blake2"
