@@ -28,12 +28,14 @@ services:
       postgres:
         condition: service_healthy
 
-  # transit:
-  #   build:
-  #     context: .
-  #     dockerfile: transit/Dockerfile
-  #   ports:
-  #     - "${TRANSIT_PORT:-4001}:4001"
+  transit:
+    build:
+      context: .
+      dockerfile: transit/Dockerfile
+    environment:
+      RUST_LOG: ${RUST_LOG:-info}
+    ports:
+      - "${TRANSIT_PORT:-4001}:4001"
 
 volumes:
   postgres-data:
