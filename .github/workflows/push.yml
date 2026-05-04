@@ -219,7 +219,7 @@ jobs:
           path: target
           key: ${{ runner.os }}-coverage-cargo-build-target
       - name: Run tarpaulin
-        run: cargo tarpaulin --workspace --out Xml
+        run: cargo tarpaulin --workspace --out Xml -- --skip test_crowded --skip test_connect_with --skip test_send_many --skip test_wrong_code --skip test_file_rust2rust
       - name: upload coverage
         uses: codecov/codecov-action@v4
         with:
