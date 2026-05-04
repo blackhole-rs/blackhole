@@ -4,7 +4,16 @@ all-features = true
 [advisories]
 db-urls = ["https://github.com/rustsec/advisory-db"]
 yanked = "warn"
-ignore = []
+ignore = [
+    # Inherited from upstream's async-tungstenite -> async-tls -> rustls 0.21 chain.
+    # Not reachable from our code path: servers terminate TLS at the reverse proxy
+    # rather than through rustls-webpki, and the wormhole client uses TLS only when
+    # `tls`/`native-tls` features are explicitly enabled (default is plain ws://).
+    # Will resolve when async-tungstenite upgrades its rustls dep.
+    "RUSTSEC-2026-0098", # rustls-webpki: URI name constraints accepted (not used)
+    "RUSTSEC-2026-0099", # rustls-webpki: wildcard name constraints (not used)
+    "RUSTSEC-2026-0104", # rustls-webpki: panic in CRL parsing (CRLs not used)
+]
 unmaintained = "workspace"
 
 [licenses]

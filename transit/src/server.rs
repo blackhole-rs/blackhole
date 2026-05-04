@@ -1,11 +1,15 @@
 use anyhow::{Context, Result, anyhow};
-use std::collections::HashMap;
-use std::net::SocketAddr;
-use std::sync::{Arc, Mutex};
-use std::time::Duration;
-use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
-use tokio::net::{TcpListener, TcpStream};
-use tokio::sync::oneshot;
+use std::{
+    collections::HashMap,
+    net::SocketAddr,
+    sync::{Arc, Mutex},
+    time::Duration,
+};
+use tokio::{
+    io::{AsyncBufReadExt, AsyncWriteExt, BufReader},
+    net::{TcpListener, TcpStream},
+    sync::oneshot,
+};
 use tracing::{debug, info, warn};
 
 const HANDSHAKE_PREFIX: &str = "please relay ";
@@ -24,7 +28,7 @@ pub async fn run(listen: SocketAddr, wait_timeout: Duration) -> Result<()> {
             Err(e) => {
                 warn!(error = %e, "accept failed");
                 continue;
-            }
+            },
         };
         let pending = pending.clone();
         tokio::spawn(async move {
@@ -60,7 +64,7 @@ async fn handle(
                 debug!(%token, "waiting peer vanished before pairing");
             }
             Ok(())
-        }
+        },
         None => {
             let (tx, rx) = oneshot::channel::<TcpStream>();
             {
@@ -74,11 +78,11 @@ async fn handle(
                 _ => {
                     pending.lock().unwrap().remove(&token);
                     return Err(anyhow!("timed out waiting for peer"));
-                }
+                },
             };
 
             pair_and_relay(sock, peer_sock).await
-        }
+        },
     }
 }
 
@@ -120,8 +124,10 @@ async fn pair_and_relay(mut a: TcpStream, mut b: TcpStream) -> Result<()> {
 #[cfg(test)]
 mod test {
     use super::*;
-    use tokio::io::{AsyncReadExt, AsyncWriteExt};
-    use tokio::net::TcpStream;
+    use tokio::{
+        io::{AsyncReadExt, AsyncWriteExt},
+        net::TcpStream,
+    };
 
     async fn start_server() -> SocketAddr {
         let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();

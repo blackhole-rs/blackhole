@@ -138,9 +138,7 @@ pub(super) async fn tcp_get_external_ip() -> Result<(SocketAddr, TcpStream), Stu
             TransactionId::new(random_bytes),
         );
 
-        message.add_attribute(Attribute::Software(Software::new(
-            "blackhole".to_owned(),
-        )?));
+        message.add_attribute(Attribute::Software(Software::new("blackhole".to_owned())?));
 
         // Encodes the message
         let mut encoder = MessageEncoder::new();

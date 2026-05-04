@@ -1,8 +1,8 @@
 use std::sync::LazyLock;
 
+use blackhole::Wordlist;
 use color_eyre::eyre;
 use dialoguer::{Completion, Input};
-use blackhole::Wordlist;
 
 static WORDLIST: LazyLock<Wordlist> = LazyLock::new(|| Wordlist::default_wordlist(2));
 

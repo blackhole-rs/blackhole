@@ -2,12 +2,15 @@ mod server;
 
 use anyhow::Result;
 use clap::Parser;
-use std::net::SocketAddr;
-use std::time::Duration;
+use std::{net::SocketAddr, time::Duration};
 use tracing_subscriber::EnvFilter;
 
 #[derive(Parser, Debug)]
-#[command(name = "blackhole-transit", about = "Blackhole transit relay server", version)]
+#[command(
+    name = "blackhole-transit",
+    about = "Blackhole transit relay server",
+    version
+)]
 struct Args {
     /// Address to bind the TCP listener on.
     #[arg(long, env = "BLACKHOLE_TRANSIT_LISTEN", default_value = "0.0.0.0:4001")]
@@ -21,7 +24,9 @@ struct Args {
 #[tokio::main]
 async fn main() -> Result<()> {
     tracing_subscriber::fmt()
-        .with_env_filter(EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info")))
+        .with_env_filter(
+            EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info")),
+        )
         .with_target(false)
         .init();
 

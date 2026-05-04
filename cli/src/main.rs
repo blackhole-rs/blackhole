@@ -9,6 +9,10 @@ use std::{
     time::{Duration, Instant},
 };
 
+use blackhole::{
+    MailboxConnection, ParseCodeError, ParsePasswordError, Wormhole, forwarding, transfer,
+    transit::{self, ConnectionType, TransitInfo},
+};
 use clap::{Args, CommandFactory, Parser, Subcommand};
 use color_eyre::{
     eyre::{self, Context},
@@ -18,10 +22,6 @@ use completer::enter_code;
 use console::{Term, style};
 use futures::{Future, future::Either};
 use indicatif::{MultiProgress, ProgressBar};
-use blackhole::{
-    MailboxConnection, ParseCodeError, ParsePasswordError, Wormhole, forwarding, transfer,
-    transit::{self, ConnectionType, TransitInfo},
-};
 use std::{io::Write, path::PathBuf};
 use tracing_subscriber::EnvFilter;
 
@@ -589,8 +589,7 @@ fn parse_transit_args(args: &CommonArgs) -> transit::Abilities {
     }
 }
 
-type PrintCodeFn =
-    dyn Fn(&mut Term, &blackhole::Code, &Option<url::Url>, bool) -> eyre::Result<()>;
+type PrintCodeFn = dyn Fn(&mut Term, &blackhole::Code, &Option<url::Url>, bool) -> eyre::Result<()>;
 
 /**
  * Parse the necessary command line arguments to establish an initial server connection.
@@ -618,9 +617,7 @@ async fn parse_and_connect(
     if relay_hints.is_empty() {
         relay_hints.push(transit::RelayHint::from_urls(
             None,
-            [blackhole::transit::DEFAULT_RELAY_SERVER
-                .parse()
-                .unwrap()],
+            [blackhole::transit::DEFAULT_RELAY_SERVER.parse().unwrap()],
         )?)
     }
 
