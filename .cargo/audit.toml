@@ -1,0 +1,11 @@
+[advisories]
+# Inherited from upstream's async-tungstenite -> async-tls -> rustls 0.21 chain.
+# Not reachable from our code path: servers terminate TLS at the reverse proxy
+# rather than through rustls-webpki, and the wormhole client uses TLS only when
+# `tls`/`native-tls` features are explicitly enabled (default is plain ws://).
+# Will resolve naturally when async-tungstenite upgrades its rustls dep.
+ignore = [
+    "RUSTSEC-2026-0098",
+    "RUSTSEC-2026-0099",
+    "RUSTSEC-2026-0104",
+]
