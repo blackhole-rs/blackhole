@@ -1,7 +1,8 @@
-# act runner image. `act-latest` is catthehacker's "medium" image — has the
-# basics (curl, build tools, jq) without pulling the multi-GB full image.
-# Override with `-P ubuntu-latest=<image>` if a particular job needs more.
--P ubuntu-latest=catthehacker/ubuntu:act-latest
+# act runner image. `runner-latest` mirrors the GitHub-hosted Actions runner
+# (Node bundled, rustup preinstalled, common tools). The smaller `act-latest`
+# image is missing Node from $PATH, which breaks JavaScript actions like
+# Swatinem/rust-cache. See https://github.com/nektos/act/issues/107.
+-P ubuntu-latest=catthehacker/ubuntu:runner-latest
 
 # Force linux/amd64 so the catthehacker images work on Apple Silicon hosts.
 # Slower than native arm64 (qemu emulation), but matches what runs on GitHub.
