@@ -1,8 +1,11 @@
-# act runner image. The medium catthehacker image is a reasonable middle
-# ground for Rust workflows — it has the basics (curl, build tools, jq) without
-# pulling the multi-GB full image. Override with `-P ubuntu-latest=<image>` if
-# a particular job needs more.
--P ubuntu-latest=ghcr.io/catthehacker/ubuntu:medium-latest
+# act runner image. `act-latest` is catthehacker's "medium" image — has the
+# basics (curl, build tools, jq) without pulling the multi-GB full image.
+# Override with `-P ubuntu-latest=<image>` if a particular job needs more.
+-P ubuntu-latest=catthehacker/ubuntu:act-latest
+
+# Force linux/amd64 so the catthehacker images work on Apple Silicon hosts.
+# Slower than native arm64 (qemu emulation), but matches what runs on GitHub.
+--container-architecture linux/amd64
 
 # Don't try to run jobs that can't work locally (Windows/macOS runners).
 --platform windows-latest=-self-hosted
