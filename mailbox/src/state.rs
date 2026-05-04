@@ -1,7 +1,9 @@
 use crate::protocol::ServerMessage;
 use async_trait::async_trait;
-use std::collections::{HashMap, HashSet};
-use std::sync::{Arc, Mutex};
+use std::{
+    collections::{HashMap, HashSet},
+    sync::{Arc, Mutex},
+};
 use tokio::sync::mpsc;
 
 pub type Tx = mpsc::UnboundedSender<ServerMessage>;

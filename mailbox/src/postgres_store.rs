@@ -4,8 +4,10 @@ use crate::state::{
 };
 use async_trait::async_trait;
 use sqlx::postgres::{PgPool, PgPoolOptions};
-use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
+use std::{
+    collections::HashMap,
+    sync::{Arc, Mutex},
+};
 
 type ListenerKey = (String, String); // (appid, mailbox_id)
 

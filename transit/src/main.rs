@@ -2,8 +2,7 @@ mod server;
 
 use anyhow::Result;
 use clap::Parser;
-use std::net::SocketAddr;
-use std::time::Duration;
+use std::{net::SocketAddr, time::Duration};
 use tracing_subscriber::EnvFilter;
 
 #[derive(Parser, Debug)]

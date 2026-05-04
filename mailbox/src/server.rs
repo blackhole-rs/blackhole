@@ -1,11 +1,17 @@
-use crate::protocol::{ClientMessage, NameplateEntry, ServerMessage, Welcome};
-use crate::state::{ConnectionId, DynStore, Tx};
+use crate::{
+    protocol::{ClientMessage, NameplateEntry, ServerMessage, Welcome},
+    state::{ConnectionId, DynStore, Tx},
+};
 use anyhow::Result;
 use futures_util::{SinkExt, StreamExt};
-use std::net::SocketAddr;
-use std::sync::atomic::{AtomicU64, Ordering};
-use tokio::net::{TcpListener, TcpStream};
-use tokio::sync::mpsc;
+use std::{
+    net::SocketAddr,
+    sync::atomic::{AtomicU64, Ordering},
+};
+use tokio::{
+    net::{TcpListener, TcpStream},
+    sync::mpsc,
+};
 use tokio_tungstenite::tungstenite::Message;
 use tracing::{debug, error, info, warn};
 
