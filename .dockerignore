@@ -1,0 +1,12 @@
+target/
+.git/
+.github/
+.idea/
+.vscode/
+.claude/
+.agents/
+*.md
+LICENSE
+CLAUDE.md
+docker-compose*.yml
+.dockerignore

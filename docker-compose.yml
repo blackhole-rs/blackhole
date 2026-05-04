@@ -1,0 +1,39 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: blackhole
+      POSTGRES_USER: blackhole
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-blackhole-dev}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U blackhole -d blackhole"]
+      interval: 2s
+      timeout: 2s
+      retries: 20
+
+  mailbox:
+    build:
+      context: .
+      dockerfile: mailbox/Dockerfile
+    environment:
+      DATABASE_URL: postgres://blackhole:${POSTGRES_PASSWORD:-blackhole-dev}@postgres:5432/blackhole
+      RUST_LOG: ${RUST_LOG:-info}
+    ports:
+      - "${MAILBOX_PORT:-4000}:4000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  # transit:
+  #   build:
+  #     context: .
+  #     dockerfile: transit/Dockerfile
+  #   ports:
+  #     - "${TRANSIT_PORT:-4001}:4001"
+
+volumes:
+  postgres-data:
