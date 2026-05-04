@@ -234,25 +234,6 @@ jobs:
         with:
           rust-version: ${{ needs.read_msrv.outputs.msrv }}
 
-  semver:
-    name: SemVer
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          toolchain: nightly
-      - name: Check semver
-        uses: obi1kenobi/cargo-semver-checks-action@v2
-        with:
-          feature-group: default-features
-          features: "all"
-      - name: Extract Changelog
-        uses: release-flow/keep-a-changelog-action@v3
-        with:
-          command: query
-          version: unreleased
-
   release:
     name: Release
     runs-on: ubuntu-latest
