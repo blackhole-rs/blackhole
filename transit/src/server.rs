@@ -115,7 +115,6 @@ async fn pair_and_relay(mut a: TcpStream, mut b: TcpStream) -> Result<()> {
     let _ = b.write_all(b"ok\n").await;
     let (a_to_b, b_to_a) = tokio::io::copy_bidirectional(&mut a, &mut b)
         .await
-        .map(|(x, y)| (x, y))
         .unwrap_or((0, 0));
     debug!(a_to_b, b_to_a, "relay finished");
     Ok(())
