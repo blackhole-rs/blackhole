@@ -854,7 +854,7 @@ fn sender_print_code(
 
     writeln!(
         term,
-        "On the other side, open the link or enter that code into a Magic Wormhole client."
+        "On the other side, open the link or enter that code into a Blackhole client."
     )?;
     writeln!(
         term,
