@@ -208,4 +208,132 @@ mod test {
         b.read_exact(&mut buf).await.unwrap();
         assert_eq!(&buf, b"ok\n");
     }
+
+    async fn start_server_with_timeout(timeout: Duration) -> SocketAddr {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let pending: Pending = Arc::new(Mutex::new(HashMap::new()));
+        tokio::spawn(async move {
+            loop {
+                let (sock, peer) = listener.accept().await.unwrap();
+                let pending = pending.clone();
+                tokio::spawn(async move {
+                    let _ = handle(sock, peer, pending, timeout).await;
+                });
+            }
+        });
+        addr
+    }
+
+    #[tokio::test]
+    async fn waiter_times_out_when_peer_never_arrives() {
+        let addr = start_server_with_timeout(Duration::from_millis(150)).await;
+        let mut s = TcpStream::connect(addr).await.unwrap();
+        s.write_all(b"please relay loner for side a\n")
+            .await
+            .unwrap();
+        // Server holds, then drops. EOF.
+        let mut buf = [0u8; 1];
+        let n = tokio::time::timeout(Duration::from_secs(2), s.read(&mut buf))
+            .await
+            .expect("server should drop after timeout")
+            .unwrap_or(0);
+        assert_eq!(n, 0);
+    }
+
+    #[tokio::test]
+    async fn multiple_independent_pairs_dont_cross_streams() {
+        let addr = start_server().await;
+
+        let mut a1 = TcpStream::connect(addr).await.unwrap();
+        a1.write_all(b"please relay token-aaa for side x\n")
+            .await
+            .unwrap();
+        let mut b1 = TcpStream::connect(addr).await.unwrap();
+        b1.write_all(b"please relay token-aaa for side y\n")
+            .await
+            .unwrap();
+
+        let mut a2 = TcpStream::connect(addr).await.unwrap();
+        a2.write_all(b"please relay token-bbb for side x\n")
+            .await
+            .unwrap();
+        let mut b2 = TcpStream::connect(addr).await.unwrap();
+        b2.write_all(b"please relay token-bbb for side y\n")
+            .await
+            .unwrap();
+
+        // Drain ok\n on all four
+        for s in [&mut a1, &mut b1, &mut a2, &mut b2] {
+            let mut buf = [0u8; 3];
+            s.read_exact(&mut buf).await.unwrap();
+            assert_eq!(&buf, b"ok\n");
+        }
+
+        // Pair 1 chats
+        a1.write_all(b"hello-from-a1").await.unwrap();
+        let mut got = [0u8; 13];
+        b1.read_exact(&mut got).await.unwrap();
+        assert_eq!(&got, b"hello-from-a1");
+
+        // Pair 2 chats independently
+        b2.write_all(b"hello-from-b2").await.unwrap();
+        let mut got = [0u8; 13];
+        a2.read_exact(&mut got).await.unwrap();
+        assert_eq!(&got, b"hello-from-b2");
+    }
+
+    #[tokio::test]
+    async fn peer_close_propagates_through_relay() {
+        let addr = start_server().await;
+        let mut a = TcpStream::connect(addr).await.unwrap();
+        a.write_all(b"please relay token-c for side a\n")
+            .await
+            .unwrap();
+        let mut b = TcpStream::connect(addr).await.unwrap();
+        b.write_all(b"please relay token-c for side b\n")
+            .await
+            .unwrap();
+
+        // Drain ok
+        let mut buf = [0u8; 3];
+        a.read_exact(&mut buf).await.unwrap();
+        b.read_exact(&mut buf).await.unwrap();
+
+        // a closes; b should see EOF.
+        drop(a);
+        let mut byte = [0u8; 1];
+        let n = tokio::time::timeout(Duration::from_secs(2), b.read(&mut byte))
+            .await
+            .expect("relay should propagate EOF")
+            .unwrap_or(0);
+        assert_eq!(n, 0);
+    }
+
+    #[tokio::test]
+    async fn large_bidirectional_transfer_preserves_bytes() {
+        let addr = start_server().await;
+        let mut a = TcpStream::connect(addr).await.unwrap();
+        a.write_all(b"please relay big for side a\n").await.unwrap();
+        let mut b = TcpStream::connect(addr).await.unwrap();
+        b.write_all(b"please relay big for side b\n").await.unwrap();
+
+        let mut buf = [0u8; 3];
+        a.read_exact(&mut buf).await.unwrap();
+        b.read_exact(&mut buf).await.unwrap();
+
+        let payload: Vec<u8> = (0..256 * 1024).map(|i| (i % 251) as u8).collect();
+
+        let payload_a = payload.clone();
+        let send_a = tokio::spawn(async move {
+            a.write_all(&payload_a).await.unwrap();
+            a
+        });
+
+        let mut got = vec![0u8; payload.len()];
+        b.read_exact(&mut got).await.unwrap();
+        assert_eq!(got, payload);
+
+        let _ = send_a.await.unwrap();
+    }
 }

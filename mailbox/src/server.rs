@@ -14,7 +14,10 @@ static NEXT_CONN: AtomicU64 = AtomicU64::new(1);
 pub async fn run(listen: SocketAddr, store: DynStore) -> Result<()> {
     let listener = TcpListener::bind(listen).await?;
     info!(%listen, "mailbox listening");
+    serve(listener, store).await
+}
 
+pub async fn serve(listener: TcpListener, store: DynStore) -> Result<()> {
     loop {
         let (sock, peer) = match listener.accept().await {
             Ok(p) => p,
@@ -279,4 +282,193 @@ fn send_error(tx: &Tx, error: &str, orig: serde_json::Value) {
 fn store_error(tx: &Tx, op: &str, err: &crate::state::StoreError) {
     error!(operation = %op, error = %err, "store error");
     send_error(tx, "internal store error", serde_json::Value::Null);
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use crate::state::InMemoryStore;
+    use futures_util::{SinkExt, StreamExt};
+    use serde_json::{Value, json};
+    use tokio_tungstenite::{
+        MaybeTlsStream, WebSocketStream, connect_async, tungstenite::Message as WsMessage,
+    };
+
+    type Client = WebSocketStream<MaybeTlsStream<tokio::net::TcpStream>>;
+
+    async fn spawn_server() -> SocketAddr {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let store = InMemoryStore::new();
+        tokio::spawn(async move {
+            let _ = serve(listener, store).await;
+        });
+        addr
+    }
+
+    async fn connect(addr: SocketAddr) -> Client {
+        let url = format!("ws://{addr}");
+        let (ws, _) = connect_async(url).await.unwrap();
+        ws
+    }
+
+    async fn recv(ws: &mut Client) -> Value {
+        loop {
+            let frame = ws.next().await.expect("disconnected").unwrap();
+            if let WsMessage::Text(t) = frame {
+                return serde_json::from_str(&t).unwrap();
+            }
+        }
+    }
+
+    async fn recv_until(ws: &mut Client, ty: &str) -> Value {
+        loop {
+            let v = recv(ws).await;
+            if v["type"] == ty {
+                return v;
+            }
+        }
+    }
+
+    async fn send(ws: &mut Client, v: Value) {
+        ws.send(WsMessage::Text(v.to_string().into())).await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn full_session_routes_messages_between_two_sides() {
+        let addr = spawn_server().await;
+
+        let mut alice = connect(addr).await;
+        let mut bob = connect(addr).await;
+
+        assert_eq!(recv(&mut alice).await["type"], "welcome");
+        assert_eq!(recv(&mut bob).await["type"], "welcome");
+
+        send(&mut alice, json!({"type": "bind", "appid": "test", "side": "alice"})).await;
+        assert_eq!(recv(&mut alice).await["type"], "ack");
+        send(&mut bob, json!({"type": "bind", "appid": "test", "side": "bob"})).await;
+        assert_eq!(recv(&mut bob).await["type"], "ack");
+
+        send(&mut alice, json!({"type": "allocate"})).await;
+        let allocated = recv_until(&mut alice, "allocated").await;
+        let nameplate = allocated["nameplate"].as_str().unwrap().to_string();
+
+        send(&mut bob, json!({"type": "claim", "nameplate": nameplate})).await;
+        let claimed = recv_until(&mut bob, "claimed").await;
+        let mailbox = claimed["mailbox"].as_str().unwrap().to_string();
+
+        send(&mut alice, json!({"type": "claim", "nameplate": nameplate})).await;
+        let claimed_a = recv_until(&mut alice, "claimed").await;
+        assert_eq!(claimed_a["mailbox"].as_str().unwrap(), mailbox);
+
+        send(&mut alice, json!({"type": "open", "mailbox": mailbox})).await;
+        send(&mut bob, json!({"type": "open", "mailbox": mailbox})).await;
+        let _ = recv_until(&mut alice, "ack").await;
+        let _ = recv_until(&mut bob, "ack").await;
+
+        // Alice sends; both should receive (Alice gets her own echo).
+        send(
+            &mut alice,
+            json!({"type": "add", "phase": "pake", "body": "deadbeef"}),
+        )
+        .await;
+        let bob_msg = recv_until(&mut bob, "message").await;
+        assert_eq!(bob_msg["side"], "alice");
+        assert_eq!(bob_msg["phase"], "pake");
+        assert_eq!(bob_msg["body"], "deadbeef");
+        // Drain Alice's echo of her own send before reading Bob's reply.
+        let alice_echo = recv_until(&mut alice, "message").await;
+        assert_eq!(alice_echo["side"], "alice");
+
+        // Bob replies; Alice should receive it.
+        send(
+            &mut bob,
+            json!({"type": "add", "phase": "version", "body": "cafe"}),
+        )
+        .await;
+        let alice_msg = recv_until(&mut alice, "message").await;
+        assert_eq!(alice_msg["side"], "bob");
+        assert_eq!(alice_msg["phase"], "version");
+    }
+
+    #[tokio::test]
+    async fn allocate_before_bind_returns_error() {
+        let addr = spawn_server().await;
+        let mut ws = connect(addr).await;
+        assert_eq!(recv(&mut ws).await["type"], "welcome");
+
+        send(&mut ws, json!({"type": "allocate"})).await;
+        // ack still comes back
+        assert_eq!(recv(&mut ws).await["type"], "ack");
+        let err = recv(&mut ws).await;
+        assert_eq!(err["type"], "error");
+        assert_eq!(err["error"], "must bind first");
+    }
+
+    #[tokio::test]
+    async fn claim_unknown_nameplate_returns_error() {
+        let addr = spawn_server().await;
+        let mut ws = connect(addr).await;
+        assert_eq!(recv(&mut ws).await["type"], "welcome");
+
+        send(&mut ws, json!({"type": "bind", "appid": "test", "side": "x"})).await;
+        assert_eq!(recv(&mut ws).await["type"], "ack");
+
+        send(&mut ws, json!({"type": "claim", "nameplate": "9999"})).await;
+        let _ = recv_until(&mut ws, "ack").await;
+        let err = recv(&mut ws).await;
+        assert_eq!(err["type"], "error");
+        assert_eq!(err["error"], "unknown nameplate");
+    }
+
+    #[tokio::test]
+    async fn ping_returns_pong() {
+        let addr = spawn_server().await;
+        let mut ws = connect(addr).await;
+        assert_eq!(recv(&mut ws).await["type"], "welcome");
+        send(&mut ws, json!({"type": "ping", "ping": 7})).await;
+        let _ = recv_until(&mut ws, "ack").await;
+        let pong = recv(&mut ws).await;
+        assert_eq!(pong["type"], "pong");
+        assert_eq!(pong["pong"], 7);
+    }
+
+    #[tokio::test]
+    async fn late_opener_replays_existing_messages() {
+        let addr = spawn_server().await;
+        let mut alice = connect(addr).await;
+        recv(&mut alice).await;
+        send(&mut alice, json!({"type": "bind", "appid": "t", "side": "alice"})).await;
+        recv(&mut alice).await;
+        send(&mut alice, json!({"type": "allocate"})).await;
+        let np = recv_until(&mut alice, "allocated").await["nameplate"]
+            .as_str()
+            .unwrap()
+            .to_string();
+        send(&mut alice, json!({"type": "claim", "nameplate": np})).await;
+        let mb = recv_until(&mut alice, "claimed").await["mailbox"]
+            .as_str()
+            .unwrap()
+            .to_string();
+        send(&mut alice, json!({"type": "open", "mailbox": mb})).await;
+        recv_until(&mut alice, "ack").await;
+        send(
+            &mut alice,
+            json!({"type": "add", "phase": "early", "body": "0102"}),
+        )
+        .await;
+        recv_until(&mut alice, "ack").await;
+
+        // Bob joins late — should see the existing message on open.
+        let mut bob = connect(addr).await;
+        recv(&mut bob).await; // welcome
+        send(&mut bob, json!({"type": "bind", "appid": "t", "side": "bob"})).await;
+        recv(&mut bob).await;
+        send(&mut bob, json!({"type": "claim", "nameplate": np})).await;
+        recv_until(&mut bob, "claimed").await;
+        send(&mut bob, json!({"type": "open", "mailbox": mb})).await;
+        let replayed = recv_until(&mut bob, "message").await;
+        assert_eq!(replayed["phase"], "early");
+        assert_eq!(replayed["body"], "0102");
+    }
 }
