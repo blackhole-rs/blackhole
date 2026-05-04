@@ -1,18 +1,17 @@
 use crate::protocol::{ClientMessage, NameplateEntry, ServerMessage, Welcome};
-use crate::state::{ConnectionId, Shared, Tx};
+use crate::state::{ConnectionId, DynStore, Tx};
 use anyhow::Result;
 use futures_util::{SinkExt, StreamExt};
 use std::net::SocketAddr;
-use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::mpsc;
 use tokio_tungstenite::tungstenite::Message;
-use tracing::{debug, info, warn};
+use tracing::{debug, error, info, warn};
 
 static NEXT_CONN: AtomicU64 = AtomicU64::new(1);
 
-pub async fn run(listen: SocketAddr, state: Arc<Shared>) -> Result<()> {
+pub async fn run(listen: SocketAddr, store: DynStore) -> Result<()> {
     let listener = TcpListener::bind(listen).await?;
     info!(%listen, "mailbox listening");
 
@@ -24,16 +23,16 @@ pub async fn run(listen: SocketAddr, state: Arc<Shared>) -> Result<()> {
                 continue;
             }
         };
-        let state = Arc::clone(&state);
+        let store = store.clone();
         tokio::spawn(async move {
-            if let Err(e) = handle(sock, peer, state).await {
+            if let Err(e) = handle(sock, peer, store).await {
                 debug!(error = %e, %peer, "connection ended");
             }
         });
     }
 }
 
-async fn handle(sock: TcpStream, peer: SocketAddr, state: Arc<Shared>) -> Result<()> {
+async fn handle(sock: TcpStream, peer: SocketAddr, store: DynStore) -> Result<()> {
     let ws = tokio_tungstenite::accept_async(sock).await?;
     let conn_id = NEXT_CONN.fetch_add(1, Ordering::Relaxed);
     debug!(%peer, conn_id, "connection accepted");
@@ -41,16 +40,13 @@ async fn handle(sock: TcpStream, peer: SocketAddr, state: Arc<Shared>) -> Result
 
     let (tx, mut rx): (Tx, mpsc::UnboundedReceiver<ServerMessage>) = mpsc::unbounded_channel();
 
-    // Welcome.
     tx.send(ServerMessage::Welcome { welcome: Welcome::default() }).ok();
 
-    // Per-connection state held in this task.
     let mut appid: Option<String> = None;
     let mut side: Option<String> = None;
     let mut claimed_nameplates: Vec<String> = Vec::new();
     let mut open_mailboxes: Vec<String> = Vec::new();
 
-    // Pump tx → sink in a separate task so handlers don't have to await sends.
     let writer = tokio::spawn(async move {
         while let Some(msg) = rx.recv().await {
             let json = match serde_json::to_string(&msg) {
@@ -67,7 +63,7 @@ async fn handle(sock: TcpStream, peer: SocketAddr, state: Arc<Shared>) -> Result
         let _ = sink.close().await;
     });
 
-    let outcome = (async {
+    let outcome: Result<()> = async {
         while let Some(frame) = stream.next().await {
             let frame = frame?;
             let text = match frame {
@@ -93,27 +89,31 @@ async fn handle(sock: TcpStream, peer: SocketAddr, state: Arc<Shared>) -> Result
                     continue;
                 }
             };
-            // Every command gets an immediate ack.
             tx.send(ServerMessage::Ack).ok();
 
             handle_message(
                 msg,
-                &state,
+                store.as_ref(),
                 &tx,
                 conn_id,
                 &mut appid,
                 &mut side,
                 &mut claimed_nameplates,
                 &mut open_mailboxes,
-            );
+            )
+            .await;
         }
-        anyhow::Ok(())
-    })
+        Ok(())
+    }
     .await;
 
-    // Cleanup on disconnect (whether orderly or not).
     if let (Some(a), Some(s)) = (appid.as_deref(), side.as_deref()) {
-        state.drop_connection(a, s, &claimed_nameplates, &open_mailboxes, conn_id);
+        if let Err(e) = store
+            .drop_connection(a, s, &claimed_nameplates, &open_mailboxes, conn_id)
+            .await
+        {
+            error!(error = %e, "drop_connection cleanup failed");
+        }
     }
 
     drop(tx);
@@ -121,9 +121,9 @@ async fn handle(sock: TcpStream, peer: SocketAddr, state: Arc<Shared>) -> Result
     outcome
 }
 
-fn handle_message(
+async fn handle_message(
     msg: ClientMessage,
-    state: &Shared,
+    store: &dyn crate::state::Store,
     tx: &Tx,
     conn_id: ConnectionId,
     appid: &mut Option<String>,
@@ -132,9 +132,7 @@ fn handle_message(
     open_mailboxes: &mut Vec<String>,
 ) {
     match msg {
-        ClientMessage::SubmitPermission(_) => {
-            // We accept any permission submission; we don't enforce any.
-        }
+        ClientMessage::SubmitPermission(_) => {}
         ClientMessage::Bind { appid: a, side: s } => {
             *appid = Some(a);
             *side = Some(s);
@@ -145,21 +143,30 @@ fn handle_message(
         ClientMessage::Allocate => {
             let Some(a) = appid.as_deref() else { return must_bind(tx) };
             let Some(s) = side.as_deref() else { return must_bind(tx) };
-            let nameplate = state.allocate_nameplate(a, s);
-            claimed_nameplates.push(nameplate.clone());
-            tx.send(ServerMessage::Allocated { nameplate }).ok();
+            match store.allocate_nameplate(a, s).await {
+                Ok(nameplate) => {
+                    claimed_nameplates.push(nameplate.clone());
+                    tx.send(ServerMessage::Allocated { nameplate }).ok();
+                }
+                Err(e) => store_error(tx, "allocate", &e),
+            }
         }
         ClientMessage::Claim { nameplate } => {
             let Some(a) = appid.as_deref() else { return must_bind(tx) };
             let Some(s) = side.as_deref() else { return must_bind(tx) };
-            match state.claim_nameplate(a, &nameplate, s) {
-                Some(mailbox) => {
+            match store.claim_nameplate(a, &nameplate, s).await {
+                Ok(Some(mailbox)) => {
                     if !claimed_nameplates.contains(&nameplate) {
                         claimed_nameplates.push(nameplate);
                     }
                     tx.send(ServerMessage::Claimed { mailbox }).ok();
                 }
-                None => send_error(tx, "unknown nameplate", serde_json::json!({"nameplate": nameplate})),
+                Ok(None) => send_error(
+                    tx,
+                    "unknown nameplate",
+                    serde_json::json!({"nameplate": nameplate}),
+                ),
+                Err(e) => store_error(tx, "claim", &e),
             }
         }
         ClientMessage::Release { nameplate } => {
@@ -174,34 +181,43 @@ fn handle_message(
                     n
                 }
             };
-            state.release_nameplate(a, &np, s);
-            claimed_nameplates.retain(|x| x != &np);
-            tx.send(ServerMessage::Released).ok();
+            match store.release_nameplate(a, &np, s).await {
+                Ok(()) => {
+                    claimed_nameplates.retain(|x| x != &np);
+                    tx.send(ServerMessage::Released).ok();
+                }
+                Err(e) => store_error(tx, "release", &e),
+            }
         }
         ClientMessage::List => {
             let Some(a) = appid.as_deref() else { return must_bind(tx) };
-            let nameplates = state
-                .list_nameplates(a)
-                .into_iter()
-                .map(|id| NameplateEntry { id })
-                .collect();
-            tx.send(ServerMessage::Nameplates { nameplates }).ok();
+            match store.list_nameplates(a).await {
+                Ok(ids) => {
+                    let nameplates = ids.into_iter().map(|id| NameplateEntry { id }).collect();
+                    tx.send(ServerMessage::Nameplates { nameplates }).ok();
+                }
+                Err(e) => store_error(tx, "list", &e),
+            }
         }
         ClientMessage::Open { mailbox } => {
             let Some(a) = appid.as_deref() else { return must_bind(tx) };
             let Some(s) = side.as_deref() else { return must_bind(tx) };
-            let history = state.open_mailbox(a, &mailbox, s, conn_id, tx.clone());
-            if !open_mailboxes.contains(&mailbox) {
-                open_mailboxes.push(mailbox);
-            }
-            for (msg_side, phase, body) in history {
-                tx.send(ServerMessage::Message {
-                    side: msg_side,
-                    phase,
-                    body,
-                    id: None,
-                })
-                .ok();
+            match store.open_mailbox(a, &mailbox, s, conn_id, tx.clone()).await {
+                Ok(history) => {
+                    if !open_mailboxes.contains(&mailbox) {
+                        open_mailboxes.push(mailbox);
+                    }
+                    for m in history {
+                        tx.send(ServerMessage::Message {
+                            side: m.side,
+                            phase: m.phase,
+                            body: m.body,
+                            id: None,
+                        })
+                        .ok();
+                    }
+                }
+                Err(e) => store_error(tx, "open", &e),
             }
         }
         ClientMessage::Add { phase, body } => {
@@ -210,15 +226,19 @@ fn handle_message(
             let Some(mb) = open_mailboxes.last() else {
                 return send_error(tx, "must open a mailbox before add", serde_json::Value::Null);
             };
-            let recipients = state.add_message(a, mb, s, &phase, &body);
-            for r in recipients {
-                r.send(ServerMessage::Message {
-                    side: s.to_string(),
-                    phase: phase.clone(),
-                    body: body.clone(),
-                    id: None,
-                })
-                .ok();
+            match store.add_message(a, mb, s, &phase, &body).await {
+                Ok(recipients) => {
+                    for r in recipients {
+                        r.send(ServerMessage::Message {
+                            side: s.to_string(),
+                            phase: phase.clone(),
+                            body: body.clone(),
+                            id: None,
+                        })
+                        .ok();
+                    }
+                }
+                Err(e) => store_error(tx, "add", &e),
             }
         }
         ClientMessage::Close { mailbox, mood: _ } => {
@@ -233,9 +253,13 @@ fn handle_message(
                     m
                 }
             };
-            state.close_mailbox(a, &mb, s, conn_id);
-            open_mailboxes.retain(|x| x != &mb);
-            tx.send(ServerMessage::Closed).ok();
+            match store.close_mailbox(a, &mb, s, conn_id).await {
+                Ok(()) => {
+                    open_mailboxes.retain(|x| x != &mb);
+                    tx.send(ServerMessage::Closed).ok();
+                }
+                Err(e) => store_error(tx, "close", &e),
+            }
         }
     }
 }
@@ -250,4 +274,9 @@ fn send_error(tx: &Tx, error: &str, orig: serde_json::Value) {
         orig,
     })
     .ok();
+}
+
+fn store_error(tx: &Tx, op: &str, err: &crate::state::StoreError) {
+    error!(operation = %op, error = %err, "store error");
+    send_error(tx, "internal store error", serde_json::Value::Null);
 }

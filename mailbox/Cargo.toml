@@ -25,9 +25,11 @@ tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 thiserror = "2"
 anyhow = "1"
+async-trait = "0.1"
 clap = { version = "4", features = ["derive", "env"] }
 rand = "0.8"
 uuid = { version = "1", features = ["v4"] }
+sqlx = { version = "0.8", default-features = false, features = ["runtime-tokio-rustls", "postgres", "macros", "migrate"] }
 
 [dev-dependencies]
 tokio = { version = "1", features = ["rt-multi-thread", "net", "macros", "sync", "time", "test-util"] }
