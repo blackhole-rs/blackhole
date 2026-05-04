@@ -146,4 +146,101 @@ mod test {
             json!({"type": "nameplates", "nameplates": [{"id": "4"}, {"id": "7"}]})
         );
     }
+
+    #[test]
+    fn parse_release_with_explicit_nameplate() {
+        let v = json!({"type": "release", "nameplate": "4"});
+        let msg: ClientMessage = from_value(v).unwrap();
+        match msg {
+            ClientMessage::Release { nameplate } => assert_eq!(nameplate.as_deref(), Some("4")),
+            _ => panic!("wrong variant"),
+        }
+    }
+
+    #[test]
+    fn parse_release_without_nameplate() {
+        let v = json!({"type": "release"});
+        let msg: ClientMessage = from_value(v).unwrap();
+        assert!(matches!(msg, ClientMessage::Release { nameplate: None }));
+    }
+
+    #[test]
+    fn parse_close_without_optional_fields() {
+        let v = json!({"type": "close"});
+        let msg: ClientMessage = from_value(v).unwrap();
+        match msg {
+            ClientMessage::Close { mailbox, mood } => {
+                assert!(mailbox.is_none());
+                assert!(mood.is_none());
+            }
+            _ => panic!("wrong variant"),
+        }
+    }
+
+    #[test]
+    fn parse_open() {
+        let v = json!({"type": "open", "mailbox": "mb-1"});
+        let msg: ClientMessage = from_value(v).unwrap();
+        match msg {
+            ClientMessage::Open { mailbox } => assert_eq!(mailbox, "mb-1"),
+            _ => panic!("wrong variant"),
+        }
+    }
+
+    #[test]
+    fn parse_ping() {
+        let v = json!({"type": "ping", "ping": 42});
+        let msg: ClientMessage = from_value(v).unwrap();
+        assert!(matches!(msg, ClientMessage::Ping { ping: 42 }));
+    }
+
+    #[test]
+    fn parse_submit_permission_hashcash() {
+        let v = json!({"type": "submit-permission", "method": "hashcash", "stamp": "xyz"});
+        let msg: ClientMessage = from_value(v).unwrap();
+        match msg {
+            ClientMessage::SubmitPermission(SubmitPermission::Hashcash { stamp }) => {
+                assert_eq!(stamp, "xyz");
+            }
+            _ => panic!("wrong variant"),
+        }
+    }
+
+    #[test]
+    fn serialize_pong() {
+        let m = ServerMessage::Pong { pong: 99 };
+        assert_eq!(to_value(&m).unwrap(), json!({"type": "pong", "pong": 99}));
+    }
+
+    #[test]
+    fn serialize_error() {
+        let m = ServerMessage::Error {
+            error: "boom".into(),
+            orig: json!({"type": "claim", "nameplate": "x"}),
+        };
+        assert_eq!(
+            to_value(&m).unwrap(),
+            json!({
+                "type": "error",
+                "error": "boom",
+                "orig": {"type": "claim", "nameplate": "x"}
+            })
+        );
+    }
+
+    #[test]
+    fn serialize_claimed_and_released() {
+        assert_eq!(
+            to_value(ServerMessage::Claimed { mailbox: "mb-1".into() }).unwrap(),
+            json!({"type": "claimed", "mailbox": "mb-1"})
+        );
+        assert_eq!(
+            to_value(ServerMessage::Released).unwrap(),
+            json!({"type": "released"})
+        );
+        assert_eq!(
+            to_value(ServerMessage::Closed).unwrap(),
+            json!({"type": "closed"})
+        );
+    }
 }

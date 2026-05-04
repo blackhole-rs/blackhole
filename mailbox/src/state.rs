@@ -312,4 +312,59 @@ mod test {
         let recipients = s.add_message("app", &mb, "alice", "pake", "ff").await.unwrap();
         assert!(recipients.is_empty());
     }
+
+    #[tokio::test]
+    async fn claim_unknown_nameplate_returns_none() {
+        let s = InMemoryStore::new();
+        let result = s.claim_nameplate("app", "9999", "alice").await.unwrap();
+        assert!(result.is_none());
+    }
+
+    #[tokio::test]
+    async fn drop_connection_releases_nameplate_and_closes_mailbox() {
+        let s = InMemoryStore::new();
+        let np = s.allocate_nameplate("app", "alice").await.unwrap();
+        let mb = s.claim_nameplate("app", &np, "alice").await.unwrap().unwrap();
+        let (tx_a, _ra) = channel();
+        s.open_mailbox("app", &mb, "alice", 1, tx_a).await.unwrap();
+
+        s.drop_connection("app", "alice", &[np.clone()], &[mb.clone()], 1).await.unwrap();
+
+        // Nameplate gone (alice was the only side).
+        assert!(s.list_nameplates("app").await.unwrap().is_empty());
+        // Mailbox gone too — adding now is a no-op.
+        let recipients = s.add_message("app", &mb, "alice", "pake", "00").await.unwrap();
+        assert!(recipients.is_empty());
+    }
+
+    #[tokio::test]
+    async fn list_nameplates_is_isolated_per_app() {
+        let s = InMemoryStore::new();
+        s.allocate_nameplate("app1", "alice").await.unwrap();
+        s.allocate_nameplate("app2", "alice").await.unwrap();
+        s.allocate_nameplate("app2", "bob").await.unwrap();
+        assert_eq!(s.list_nameplates("app1").await.unwrap().len(), 1);
+        assert_eq!(s.list_nameplates("app2").await.unwrap().len(), 2);
+        assert!(s.list_nameplates("app3").await.unwrap().is_empty());
+    }
+
+    #[tokio::test]
+    async fn add_message_to_unknown_mailbox_is_noop() {
+        let s = InMemoryStore::new();
+        let recipients = s.add_message("app", "missing-mailbox-id", "alice", "pake", "ff")
+            .await
+            .unwrap();
+        assert!(recipients.is_empty());
+    }
+
+    #[tokio::test]
+    async fn second_close_for_same_side_is_idempotent() {
+        let s = InMemoryStore::new();
+        let np = s.allocate_nameplate("app", "alice").await.unwrap();
+        let mb = s.claim_nameplate("app", &np, "alice").await.unwrap().unwrap();
+        let (tx, _rx) = channel();
+        s.open_mailbox("app", &mb, "alice", 1, tx).await.unwrap();
+        s.close_mailbox("app", &mb, "alice", 1).await.unwrap();
+        s.close_mailbox("app", &mb, "alice", 1).await.unwrap(); // no panic
+    }
 }
