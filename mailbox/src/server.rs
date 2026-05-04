@@ -68,7 +68,7 @@ async fn handle(sock: TcpStream, peer: SocketAddr, store: DynStore) -> Result<()
                     continue;
                 },
             };
-            if sink.send(Message::Text(json.into())).await.is_err() {
+            if sink.send(Message::Text(json)).await.is_err() {
                 break;
             }
         }
@@ -119,13 +119,12 @@ async fn handle(sock: TcpStream, peer: SocketAddr, store: DynStore) -> Result<()
     }
     .await;
 
-    if let (Some(a), Some(s)) = (appid.as_deref(), side.as_deref()) {
-        if let Err(e) = store
+    if let (Some(a), Some(s)) = (appid.as_deref(), side.as_deref())
+        && let Err(e) = store
             .drop_connection(a, s, &claimed_nameplates, &open_mailboxes, conn_id)
             .await
-        {
-            error!(error = %e, "drop_connection cleanup failed");
-        }
+    {
+        error!(error = %e, "drop_connection cleanup failed");
     }
 
     drop(tx);
@@ -133,6 +132,7 @@ async fn handle(sock: TcpStream, peer: SocketAddr, store: DynStore) -> Result<()
     outcome
 }
 
+#[allow(clippy::too_many_arguments)] // per-connection state threaded explicitly; refactoring just hides it.
 async fn handle_message(
     msg: ClientMessage,
     store: &dyn crate::state::Store,
